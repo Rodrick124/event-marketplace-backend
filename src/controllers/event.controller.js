@@ -16,10 +16,21 @@ exports.createEvent = async (req, res, next) => {
 exports.listApprovedEvents = async (req, res, next) => {
 	try {
 		const { page = 1, limit = 20 } = req.query;
-		const events = await Event.find({ status: 'approved' })
-			.sort({ date: 1 })
-			.skip((Number(page) - 1) * Number(limit))
-			.limit(Number(limit));
+
+		// Caching: Use latest update timestamp for ETag
+		const latestEvent = await Event.findOne({ status: 'approved' }).sort({ updatedAt: -1 }).select('updatedAt').lean();
+		if (latestEvent) {
+			// ETag includes pagination to differentiate cached pages
+			const etag = `W/"${latestEvent.updatedAt.getTime()}-${page}-${limit}"`;
+			res.set('ETag', etag);
+			res.set('Cache-Control', 'public, max-age=60'); // Cache for 60 seconds
+
+			if (req.get('if-none-match') === etag) {
+				return res.status(304).end();
+			}
+		}
+
+		const events = await Event.find({ status: 'approved' }).sort({ date: 1 }).skip((Number(page) - 1) * Number(limit)).limit(Number(limit));
 		return res.json(events);
 	} catch (err) {
 		return next(err);
@@ -30,6 +41,16 @@ exports.getEventById = async (req, res, next) => {
 	try {
 		const event = await Event.findById(req.params.id);
 		if (!event) return res.status(404).json({ message: 'Event not found' });
+
+		// Caching: Use updatedAt for ETag
+		const etag = `W/"${event.updatedAt.getTime()}"`;
+		res.set('ETag', etag);
+		res.set('Cache-Control', 'public, max-age=60'); // Cache for 60 seconds
+
+		if (req.get('if-none-match') === etag) {
+			return res.status(304).end();
+		}
+
 		return res.json(event);
 	} catch (err) {
 		return next(err);
@@ -90,5 +111,3 @@ exports.searchEvents = async (req, res, next) => {
 		return next(err);
 	}
 };
-
-

@@ -125,18 +125,22 @@ exports.getActivityLogs = async (req, res, next) => {
 			}
 		}
 
+		// Caching: Use count and latest timestamp to generate ETag
+		const [total, latestLog] = await Promise.all([ActivityLog.countDocuments(matchStage), ActivityLog.findOne(matchStage).sort({ timestamp: -1 }).select('timestamp').lean()]);
+
+		if (latestLog) {
+			const etag = `W/"${total}-${latestLog.timestamp.getTime()}"`;
+			res.set('ETag', etag);
+			res.set('Cache-Control', 'private, max-age=30'); // Cache for 30s for authenticated users
+			if (req.get('if-none-match') === etag) {
+				return res.status(304).end();
+			}
+		}
+
 		const sortStage = {};
 		sortStage[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
-		const [data, total] = await Promise.all([
-			ActivityLog.find(matchStage)
-				.populate('userId', 'name email')
-				.sort(sortStage)
-				.skip(skip)
-				.limit(limitNum)
-				.lean(),
-			ActivityLog.countDocuments(matchStage),
-		]);
+		const data = await ActivityLog.find(matchStage).populate('userId', 'name email').sort(sortStage).skip(skip).limit(limitNum).lean();
 
 		const pages = Math.ceil(total / limitNum);
 
