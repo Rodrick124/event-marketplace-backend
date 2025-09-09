@@ -124,7 +124,7 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
 
 ### `GET /api/dashboard/admin`
 
-*   **Description:** Retrieves statistics for the admin dashboard.
+*   **Description:** Get comprehensive dashboard statistics
 *   **Authentication:** Required (JWT in Authorization header)
 *   **Roles:** `admin`
 *   **Request Headers:**
@@ -134,10 +134,35 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
 *   **Response (Success 200):**
     ```json
     {
-        "totalUsers": 100,
-        "totalEvents": 50,
-        "revenue": 15000.00,
-        "bookings": 200
+      "success": true,
+      "data": {
+        "totalUsers": 1250,
+        "totalEvents": 340,
+        "totalReservations": 2890,
+        "totalRevenue": 125000.50,
+        "activeEvents": 85,
+        "pendingReservations": 45,
+        "newUsersThisMonth": 120,
+        "revenueThisMonth": 15000.00,
+        "topCategories": [
+          {
+            "category": "Music",
+            "eventCount": 120,
+            "revenue": 45000.00,
+            "reservationCount": 890
+          }
+        ],
+        "recentActivity": [
+          {
+            "_id": "activity_id",
+            "type": "user_registration",
+            "description": "New user registered: John Doe",
+            "userId": "user_id",
+            "timestamp": "2024-01-15T10:30:00Z",
+            "metadata": {}
+          }
+        ]
+      }
     }
     ```
 *   **Response (Error 401/403):**
@@ -150,6 +175,128 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     ```json
     {
         "message": "Forbidden"
+    }
+    ```
+
+### `GET /api/dashboard/admin/users`
+
+*   **Description:** Get a paginated and filterable list of all users with detailed stats.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `admin`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Query Parameters:**
+    *   `page` (number, optional, default: 1): Page number for pagination.
+    *   `limit` (number, optional, default: 10): Number of items per page.
+    *   `search` (string, optional): Search term for user name or email.
+    *   `status` (string, optional): Filter by status (`active`, `banned`).
+    *   `sortBy` (string, optional, default: `registrationDate`): Field to sort by (`registrationDate`, `name`, `totalSpent`).
+    *   `sortOrder` (string, optional, default: `desc`): Sort order (`asc`, `desc`).
+*   **Response (Success 200):**
+    ```json
+    {
+      "success": true,
+      "data": [
+        {
+          "_id": "user_id",
+          "name": "John Doe",
+          "email": "john@example.com",
+          "role": "attendee",
+          "initials": "JD",
+          "phone": "+1234567890",
+          "bio": "Event enthusiast",
+          "registrationDate": "2024-01-01T00:00:00Z",
+          "isActive": true,
+          "isBanned": false,
+          "totalReservations": 15,
+          "totalSpent": 750.00,
+          "organization": "Tech Corp"
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "limit": 10,
+        "total": 1250,
+        "pages": 125
+      }
+    }
+    ```
+*   **Response (Error 401/403):**
+    ```json
+    {
+        "message": "Unauthorized"
+    }
+    ```
+    or
+    ```json
+    {
+        "message": "Forbidden"
+    }
+    ```
+
+### `GET /api/dashboard/admin/events`
+
+*   **Description:** Get a paginated and filterable list of all events with detailed stats.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `admin`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Query Parameters:**
+    *   `page` (number, optional, default: 1): Page number for pagination.
+    *   `limit` (number, optional, default: 10): Number of items per page.
+    *   `search` (string, optional): Search term for event title or description.
+    *   `sortBy` (string, optional, default: `createdAt`): Field to sort by.
+    *   `sortOrder` (string, optional, default: `desc`): Sort order (`asc`, `desc`).
+    *   `status` (string, optional): Filter by derived status (`published`, `draft`, `cancelled`, `completed`).
+    *   `category` (string, optional): Filter by event category.
+    *   `approvalStatus` (string, optional): Filter by approval status (`pending`, `approved`, `rejected`).
+*   **Response (Success 200):**
+    ```json
+    {
+      "success": true,
+      "data": [
+        {
+          "_id": "event_id",
+          "title": "Tech Conference 2024",
+          "description": "Annual technology conference",
+          "date": "2024-03-15T09:00:00Z",
+          "time": "09:00",
+          "location": "Convention Center",
+          "capacity": 500,
+          "price": 150.00,
+          "category": "Technology",
+          "image": "event_image_url",
+          "availableSeats": 250,
+          "organizer": {
+            "_id": "organizer_id",
+            "name": "Event Organizer",
+            "email": "organizer@example.com"
+          },
+          "totalReservations": 250,
+          "totalRevenue": 37500.00,
+          "status": "published",
+          "createdAt": "2024-01-01T00:00:00Z",
+          "updatedAt": "2024-01-15T10:30:00Z",
+          "isApproved": true,
+          "approvalStatus": "approved"
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "limit": 10,
+        "total": 340,
+        "pages": 34
+      }
+    }
+    ```
+*   **Response (Error 401/403):**
+    ```json
+    {
+        "message": "Unauthorized or Forbidden"
     }
     ```
 
