@@ -300,6 +300,142 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     }
     ```
 
+### `GET /api/dashboard/admin/reservations`
+
+*   **Description:** Get a paginated and filterable list of all reservations with detailed info.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `admin`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Query Parameters:**
+    *   `page` (number, optional, default: 1): Page number for pagination.
+    *   `limit` (number, optional, default: 10): Number of items per page.
+    *   `search` (string, optional): Search term for user name/email or event title.
+    *   `sortBy` (string, optional, default: `reservationDate`): Field to sort by (`reservationDate`, `totalAmount`).
+    *   `sortOrder` (string, optional, default: `desc`): Sort order (`asc`, `desc`).
+    *   `status` (string, optional): Filter by reservation status (e.g., `pending`, `reserved`, `cancelled`).
+    *   `paymentStatus` (string, optional): Filter by payment status (e.g., `completed`, `pending`, `failed`, `unpaid`).
+*   **Response (Success 200):**
+    ```json
+    {
+      "success": true,
+      "data": [
+        {
+          "_id": "reservation_id",
+          "userId": "user_id",
+          "eventId": "event_id",
+          "event": {
+            "_id": "event_id",
+            "title": "Tech Conference 2024",
+            "date": "2024-03-15T09:00:00Z",
+            "time": "09:00",
+            "location": "Convention Center"
+          },
+          "user": {
+            "_id": "user_id",
+            "name": "John Doe",
+            "email": "john@example.com"
+          },
+          "ticketQuantity": 2,
+          "totalAmount": 300.00,
+          "status": "reserved",
+          "paymentStatus": "completed",
+          "reservationDate": "2024-01-10T10:00:00Z",
+          "paymentMethod": "stripe",
+          "transactionId": "txn_123456",
+          "createdAt": "2024-01-10T10:00:00Z",
+          "updatedAt": "2024-01-10T10:05:00Z"
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "limit": 10,
+        "total": 2890,
+        "pages": 289
+      }
+    }
+    ```
+*   **Response (Error 401/403):**
+    ```json
+    {
+        "message": "Unauthorized or Forbidden"
+    }
+    ```
+
+### `GET /api/dashboard/admin/analytics/revenue`
+
+*   **Description:** Get time-series data for revenue and reservations for chart display.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `admin`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Query Parameters:**
+    *   `period` (string, optional, default: `month`): Time period (`week`, `month`, `year`).
+*   **Response (Success 200):**
+    ```json
+    {
+      "success": true,
+      "data": [
+        {
+          "date": "2024-01-01",
+          "revenue": 5000.00,
+          "reservations": 50
+        },
+        {
+          "date": "2024-01-02",
+          "revenue": 7500.00,
+          "reservations": 75
+        }
+      ]
+    }
+    ```
+*   **Response (Error 401/403):**
+    ```json
+    {
+        "message": "Unauthorized or Forbidden"
+    }
+    ```
+
+### `GET /api/dashboard/admin/analytics/users`
+
+*   **Description:** Get time-series data for user growth for chart display.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `admin`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Query Parameters:**
+    *   `period` (string, optional, default: `month`): Time period (`week`, `month`, `year`).
+*   **Response (Success 200):**
+    ```json
+    {
+      "success": true,
+      "data": [
+        {
+          "date": "2024-01-01",
+          "newUsers": 25,
+          "totalUsers": 1000
+        },
+        {
+          "date": "2024-01-02",
+          "newUsers": 30,
+          "totalUsers": 1030
+        }
+      ]
+    }
+    ```
+*   **Response (Error 401/403):**
+    ```json
+    {
+        "message": "Unauthorized or Forbidden"
+    }
+    ```
+
 ### `GET /api/dashboard/organizer`
 
 *   **Description:** Retrieves statistics for the organizer dashboard.

@@ -383,3 +383,232 @@ exports.getEventsForAdminDashboard = async (req, res, next) => {
 		return next(err);
 	}
 };
+
+exports.getReservationsForAdminDashboard = async (req, res, next) => {
+	try {
+		const { page = 1, limit = 10, search, sortBy = 'reservationDate', sortOrder = 'desc', status, paymentStatus } = req.query;
+
+		const pageNum = parseInt(page, 10);
+		const limitNum = parseInt(limit, 10);
+		const skip = (pageNum - 1) * limitNum;
+
+		// Build initial match stage for fields on the Reservation model
+		const initialMatch = {};
+		if (status) {
+			initialMatch.status = status;
+		}
+
+		// Build Sort Stage
+		const sortStage = {};
+		let sortField = sortBy;
+		if (sortBy === 'reservationDate') sortField = 'createdAt';
+		if (sortBy === 'totalAmount') sortField = 'totalPrice'; // Assumes 'totalPrice' is on the Reservation model
+		sortStage[sortField] = sortOrder === 'asc' ? 1 : -1;
+
+		const aggregation = [
+			// Stage 1: Initial filter on Reservation fields
+			{ $match: initialMatch },
+			// Stage 2: Lookups for related data
+			{
+				$lookup: {
+					from: 'users',
+					localField: 'userId',
+					foreignField: '_id',
+					as: 'user',
+				},
+			},
+			{ $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+			{
+				$lookup: {
+					from: 'events',
+					localField: 'eventId',
+					foreignField: '_id',
+					as: 'event',
+				},
+			},
+			{ $unwind: { path: '$event', preserveNullAndEmptyArrays: true } },
+			{
+				$lookup: {
+					from: 'payments',
+					localField: '_id',
+					foreignField: 'reservationId',
+					as: 'payment',
+				},
+			},
+			{ $unwind: { path: '$payment', preserveNullAndEmptyArrays: true } },
+			// Stage 3: Add derived fields for filtering
+			{
+				$addFields: {
+					derivedPaymentStatus: { $ifNull: ['$payment.status', 'unpaid'] },
+				},
+			},
+		];
+
+		// Stage 4: Dynamic filtering based on lookups
+		const postLookupMatch = {};
+		if (paymentStatus) {
+			postLookupMatch.derivedPaymentStatus = paymentStatus;
+		}
+		if (search) {
+			postLookupMatch.$or = [
+				{ 'user.name': { $regex: search, $options: 'i' } },
+				{ 'user.email': { $regex: search, $options: 'i' } },
+				{ 'event.title': { $regex: search, $options: 'i' } },
+			];
+		}
+		if (Object.keys(postLookupMatch).length > 0) {
+			aggregation.push({ $match: postLookupMatch });
+		}
+
+		// Stage 5: Sort
+		aggregation.push({ $sort: sortStage });
+
+		// Stage 6: Facet for pagination and final projection
+		aggregation.push({
+			$facet: {
+				data: [
+					{ $skip: skip },
+					{ $limit: limitNum },
+					{
+						$project: {
+							_id: 1,
+							userId: '$user._id',
+							eventId: '$event._id',
+							event: {
+								_id: '$event._id',
+								title: '$event.title',
+								date: '$event.date',
+								time: '$event.time',
+								location: '$event.location.city',
+							},
+							user: {
+								_id: '$user._id',
+								name: '$user.name',
+								email: '$user.email',
+							},
+							ticketQuantity: 1,
+							totalAmount: '$totalPrice',
+							status: 1,
+							paymentStatus: '$derivedPaymentStatus',
+							reservationDate: '$createdAt',
+							paymentMethod: '$payment.method',
+							transactionId: '$payment.transactionId',
+							createdAt: 1,
+							updatedAt: 1,
+						},
+					},
+				],
+				pagination: [{ $count: 'total' }],
+			},
+		});
+
+		const [results] = await Reservation.aggregate(aggregation);
+
+		const data = results?.data || [];
+		const total = results?.pagination[0]?.total || 0;
+		const pages = Math.ceil(total / limitNum);
+
+		return res.json({
+			success: true,
+			data,
+			pagination: { page: pageNum, limit: limitNum, total, pages },
+		});
+	} catch (err) {
+		return next(err);
+	}
+};
+
+const getAnalyticsTimeParams = (period = 'month') => {
+	const now = new Date();
+	let startDate;
+	let groupByFormat;
+
+	switch (period) {
+		case 'week':
+			startDate = new Date();
+			startDate.setDate(now.getDate() - 7);
+			groupByFormat = '%Y-%m-%d';
+			break;
+		case 'year':
+			startDate = new Date();
+			startDate.setFullYear(now.getFullYear() - 1);
+			groupByFormat = '%Y-%m';
+			break;
+		case 'month':
+		default:
+			startDate = new Date();
+			startDate.setDate(now.getDate() - 30);
+			groupByFormat = '%Y-%m-%d';
+			break;
+	}
+	return { startDate, groupByFormat };
+};
+
+exports.getRevenueAnalytics = async (req, res, next) => {
+	try {
+		const { period } = req.query;
+		const { startDate, groupByFormat } = getAnalyticsTimeParams(period);
+
+		const data = await Payment.aggregate([
+			{ $match: { status: 'completed', createdAt: { $gte: startDate } } },
+			{
+				$group: {
+					_id: { $dateToString: { format: groupByFormat, date: '$createdAt' } },
+					revenue: { $sum: '$amount' },
+					reservations: { $sum: 1 },
+				},
+			},
+			{ $sort: { _id: 1 } },
+			{
+				$project: {
+					_id: 0,
+					date: '$_id',
+					revenue: '$revenue',
+					reservations: '$reservations',
+				},
+			},
+		]);
+
+		return res.json({ success: true, data });
+	} catch (err) {
+		return next(err);
+	}
+};
+
+exports.getUserGrowthAnalytics = async (req, res, next) => {
+	try {
+		const { period } = req.query;
+		const { startDate, groupByFormat } = getAnalyticsTimeParams(period);
+
+		const [initialTotal, growthData] = await Promise.all([
+			User.countDocuments({ createdAt: { $lt: startDate } }),
+			User.aggregate([
+				{ $match: { createdAt: { $gte: startDate } } },
+				{
+					$group: {
+						_id: { $dateToString: { format: groupByFormat, date: '$createdAt' } },
+						newUsers: { $sum: 1 },
+					},
+				},
+				{ $sort: { _id: 1 } },
+				{
+					$project: {
+						_id: 0,
+						date: '$_id',
+						newUsers: '$newUsers',
+					},
+				},
+			]),
+		]);
+
+		let runningTotal = initialTotal;
+		const data = growthData.map((item) => {
+			runningTotal += item.newUsers;
+			return { ...item, totalUsers: runningTotal };
+		});
+
+		return res.json({ success: true, data });
+	} catch (err) {
+		return next(err);
+	}
+};

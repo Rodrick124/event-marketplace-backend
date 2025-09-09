@@ -7,5 +7,8 @@ router.get('/organizer', requireAuth, requireRoles('organizer'), controller.orga
 router.get('/attendee', requireAuth, requireRoles('attendee'), controller.attendeeStats);
 router.get('/admin/users', requireAuth, requireRoles('admin'), controller.getUsersForAdminDashboard);
 router.get('/admin/events', requireAuth, requireRoles('admin'), controller.getEventsForAdminDashboard);
+router.get('/admin/reservations', requireAuth, requireRoles('admin'), controller.getReservationsForAdminDashboard);
+router.get('/admin/analytics/revenue', requireAuth, requireRoles('admin'), controller.getRevenueAnalytics);
+router.get('/admin/analytics/users', requireAuth, requireRoles('admin'), controller.getUserGrowthAnalytics);
 
 module.exports = router;
