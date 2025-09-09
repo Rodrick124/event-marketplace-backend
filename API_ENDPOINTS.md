@@ -436,6 +436,57 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     }
     ```
 
+### `GET /api/dashboard/admin/activity-logs`
+
+*   **Description:** Get a paginated and filterable list of all system activity logs.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `admin`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Query Parameters:**
+    *   `page` (number, optional, default: 1): Page number for pagination.
+    *   `limit` (number, optional, default: 20): Number of items per page.
+    *   `search` (string, optional): Search term for the log description.
+    *   `sortBy` (string, optional, default: `timestamp`): Field to sort by.
+    *   `sortOrder` (string, optional, default: `desc`): Sort order (`asc`, `desc`).
+    *   `type` (string, optional): Filter by activity type (e.g., `user_registration`, `event_created`).
+    *   `dateFrom` (string, optional, ISO Date): Filter logs created on or after this date.
+    *   `dateTo` (string, optional, ISO Date): Filter logs created on or before this date.
+*   **Response (Success 200):**
+    ```json
+    {
+      "success": true,
+      "data": [
+        {
+          "_id": "log_id",
+          "type": "user_registration",
+          "description": "New user registered: John Doe",
+          "userId": "user_id",
+          "eventId": null,
+          "timestamp": "2024-01-15T10:30:00Z",
+          "metadata": {
+            "userAgent": "Mozilla/5.0...",
+            "ipAddress": "192.168.1.1"
+          }
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "limit": 20,
+        "total": 5000,
+        "pages": 250
+      }
+    }
+    ```
+*   **Response (Error 401/403):**
+    ```json
+    {
+        "message": "Unauthorized or Forbidden"
+    }
+    ```
+
 ### `GET /api/dashboard/organizer`
 
 *   **Description:** Retrieves statistics for the organizer dashboard.

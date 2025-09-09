@@ -3,6 +3,7 @@ const Event = require('../models/Event');
 const Reservation = require('../models/Reservation');
 const Payment = require('../models/Payment');
 const mongoose = require('mongoose');
+const ActivityLog = require('../models/ActivityLog');
 
 exports.adminStats = async (req, res, next) => {
 	try {
@@ -92,6 +93,61 @@ exports.adminStats = async (req, res, next) => {
 				revenueThisMonth,
 				topCategories,
 				recentActivity,
+			},
+		});
+	} catch (err) {
+		return next(err);
+	}
+};
+
+exports.getActivityLogs = async (req, res, next) => {
+	try {
+		const { page = 1, limit = 20, search, sortBy = 'timestamp', sortOrder = 'desc', type, dateFrom, dateTo } = req.query;
+
+		const pageNum = parseInt(page, 10);
+		const limitNum = parseInt(limit, 10);
+		const skip = (pageNum - 1) * limitNum;
+
+		const matchStage = {};
+		if (search) {
+			matchStage.description = { $regex: search, $options: 'i' };
+		}
+		if (type) {
+			matchStage.type = type;
+		}
+		if (dateFrom || dateTo) {
+			matchStage.timestamp = {};
+			if (dateFrom) {
+				matchStage.timestamp.$gte = new Date(dateFrom);
+			}
+			if (dateTo) {
+				matchStage.timestamp.$lte = new Date(dateTo);
+			}
+		}
+
+		const sortStage = {};
+		sortStage[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+		const [data, total] = await Promise.all([
+			ActivityLog.find(matchStage)
+				.populate('userId', 'name email')
+				.sort(sortStage)
+				.skip(skip)
+				.limit(limitNum)
+				.lean(),
+			ActivityLog.countDocuments(matchStage),
+		]);
+
+		const pages = Math.ceil(total / limitNum);
+
+		return res.json({
+			success: true,
+			data,
+			pagination: {
+				page: pageNum,
+				limit: limitNum,
+				total,
+				pages,
 			},
 		});
 	} catch (err) {

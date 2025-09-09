@@ -7,6 +7,7 @@ const User = require('../src/models/User');
 const Event = require('../src/models/Event');
 const Reservation = require('../src/models/Reservation');
 const Payment = require('../src/models/Payment');
+const ActivityLog = require('../src/models/ActivityLog');
 
 function randomChoice(array) {
 	return array[Math.floor(Math.random() * array.length)];
@@ -15,6 +16,7 @@ function randomChoice(array) {
 async function dropDemoDataIfRequested() {
 	if (process.env.DEMO_DROP !== 'true') return;
 	await Promise.all([
+		ActivityLog.deleteMany({}),
 		Payment.deleteMany({}),
 		Reservation.deleteMany({}),
 		Event.deleteMany({}),
@@ -153,13 +155,80 @@ async function createReservationsAndPayments(attendeeUsers, events) {
 	}
 
 	// persist seat updates, reservations, and payments
-	await Promise.all([
-		...events.map((e) => Event.updateOne({ _id: e._id }, { $set: { availableSeats: e.availableSeats } })),
+	const [_, reservationDocs, paymentDocs] = await Promise.all([
+		Promise.all(events.map((e) => Event.updateOne({ _id: e._id }, { $set: { availableSeats: e.availableSeats } }))),
 		Reservation.insertMany(reservations),
 		Payment.insertMany(payments),
 	]);
-	console.log(`Created reservations → ${reservations.length}`);
-	console.log(`Created payments → ${payments.length}`);
+	console.log(`Created reservations → ${reservationDocs.length}`);
+	console.log(`Created payments → ${paymentDocs.length}`);
+	return { reservationDocs, paymentDocs };
+}
+
+async function createActivityLogs({ users, events, reservations, payments }) {
+	const activityLogs = [];
+	const allUsers = [...users.organizerUsers, ...users.attendeeUsers];
+
+	// User registration logs
+	allUsers.forEach((user) => {
+		activityLogs.push({
+			type: 'user_registration',
+			description: `New user registered: ${user.name}`,
+			userId: user._id,
+			timestamp: user.createdAt,
+			metadata: { ipAddress: faker.internet.ip(), userAgent: faker.internet.userAgent() },
+		});
+	});
+
+	// Event logs
+	events.forEach((event) => {
+		activityLogs.push({
+			type: 'event_created',
+			description: `Event created: "${event.title}"`,
+			userId: event.organizerId,
+			eventId: event._id,
+			timestamp: event.createdAt,
+			metadata: { ipAddress: faker.internet.ip(), userAgent: faker.internet.userAgent() },
+		});
+		if (event.status !== 'pending') {
+			activityLogs.push({
+				type: 'event_status_changed',
+				description: `Event "${event.title}" status changed to ${event.status}`,
+				eventId: event._id,
+				timestamp: faker.date.soon({ days: 1, refDate: event.createdAt }),
+				metadata: { ipAddress: faker.internet.ip(), userAgent: faker.internet.userAgent() },
+			});
+		}
+	});
+
+	// Reservation logs
+	reservations.forEach((r) => {
+		activityLogs.push({
+			type: r.status === 'cancelled' ? 'reservation_cancelled' : 'new_reservation',
+			description: `Reservation for ${r.ticketQuantity} ticket(s) was ${r.status}`,
+			userId: r.userId,
+			eventId: r.eventId,
+			timestamp: r.createdAt,
+			metadata: { ipAddress: faker.internet.ip(), userAgent: faker.internet.userAgent() },
+		});
+	});
+
+	// Payment logs
+	payments.forEach((p) => {
+		activityLogs.push({
+			type: `payment_${p.status}`,
+			description: `Payment of ${p.amount.toFixed(2)} via ${p.method} was ${p.status}`,
+			userId: p.userId,
+			eventId: p.eventId,
+			timestamp: p.createdAt,
+			metadata: { ipAddress: faker.internet.ip(), userAgent: faker.internet.userAgent(), transactionId: p.transactionId },
+		});
+	});
+
+	if (activityLogs.length > 0) {
+		await ActivityLog.insertMany(activityLogs);
+	}
+	console.log(`Created activity logs → ${activityLogs.length}`);
 }
 
 async function main() {
@@ -171,7 +240,8 @@ async function main() {
 	const attendees = Number(process.env.DEMO_ATTENDEES || 500);
 	const { organizerUsers, attendeeUsers } = await createUsers({ organizers, attendees });
 	const events = await createEvents(organizerUsers, { perOrganizer: { min: 5, max: 15 } });
-	await createReservationsAndPayments(attendeeUsers, events);
+	const { reservationDocs, paymentDocs } = await createReservationsAndPayments(attendeeUsers, events);
+	await createActivityLogs({ users: { organizerUsers, attendeeUsers }, events, reservations: reservationDocs, payments: paymentDocs });
 	console.log('Demo seed complete.');
 	await mongoose.connection.close();
 	process.exit(0);

@@ -10,5 +10,6 @@ router.get('/admin/events', requireAuth, requireRoles('admin'), controller.getEv
 router.get('/admin/reservations', requireAuth, requireRoles('admin'), controller.getReservationsForAdminDashboard);
 router.get('/admin/analytics/revenue', requireAuth, requireRoles('admin'), controller.getRevenueAnalytics);
 router.get('/admin/analytics/users', requireAuth, requireRoles('admin'), controller.getUserGrowthAnalytics);
+router.get('/admin/activity-logs', requireAuth, requireRoles('admin'), controller.getActivityLogs);
 
 module.exports = router;
