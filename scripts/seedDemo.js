@@ -25,6 +25,89 @@ async function dropDemoDataIfRequested() {
 	console.log('Dropped existing demo data');
 }
 
+async function createFixedDemoData() {
+	console.log('Creating fixed demo data (organizer, attendee, event)...');
+
+	// Organizer user
+	const organizerEmail = 'organizer@example.com';
+	const organizerName = 'Test Organizer';
+	const organizerPassword = 'Organizer@12345';
+	let organizerUser = await User.findOne({ email: organizerEmail });
+	if (!organizerUser) {
+		organizerUser = await User.create({ name: organizerName, email: organizerEmail, password: organizerPassword, role: 'organizer' });
+		console.log('Fixed organizer created:', { email: organizerEmail });
+	} else {
+		console.log('Fixed organizer already exists:', organizerEmail);
+	}
+
+	// Attendee user
+	const attendeeEmail = 'attendee@example.com';
+	const attendeeName = 'Test Attendee';
+	const attendeePassword = 'Attendee@12345';
+	let attendeeUser = await User.findOne({ email: attendeeEmail });
+	if (!attendeeUser) {
+		attendeeUser = await User.create({ name: attendeeName, email: attendeeEmail, password: attendeePassword, role: 'attendee' });
+		console.log('Fixed attendee created:', { email: attendeeEmail });
+	} else {
+		console.log('Fixed attendee already exists:', attendeeEmail);
+	}
+
+	// Create a sample event for the organizer, and a reservation/payment for the attendee
+	if (organizerUser) {
+		let sampleEvent = await Event.findOne({ organizerId: organizerUser._id, title: 'Community Tech Meetup' });
+		if (!sampleEvent) {
+			sampleEvent = await Event.create({
+				organizerId: organizerUser._id,
+				title: 'Community Tech Meetup',
+				description:
+					'Join us for a friendly meetup to discuss the latest in web development, cloud, and more. All skill levels welcome!',
+				category: 'Tech',
+				location: {
+					address: '123 Main St',
+					city: 'Techville',
+					country: 'USA',
+				},
+				date: new Date(new Date().setDate(new Date().getDate() + 30)), // 30 days from now
+				time: '18:30',
+				price: 25.0,
+				totalSeats: 100,
+				availableSeats: 100,
+				imageUrl: 'https://via.placeholder.com/1024x768.png/008877?text=Tech+Meetup',
+				status: 'approved', // Pre-approve for demo purposes
+			});
+			console.log('Fixed sample event created:', { title: sampleEvent.title });
+		} else {
+			console.log('Fixed sample event already exists:', sampleEvent.title);
+		}
+
+		if (attendeeUser && sampleEvent) {
+			let sampleReservation = await Reservation.findOne({ userId: attendeeUser._id, eventId: sampleEvent._id });
+			if (!sampleReservation) {
+				const ticketQuantity = 2;
+				const totalPrice = sampleEvent.price * ticketQuantity;
+
+				const eventUpdate = await Event.updateOne(
+					{ _id: sampleEvent._id, availableSeats: { $gte: ticketQuantity } },
+					{ $inc: { availableSeats: -ticketQuantity } }
+				);
+
+				if (eventUpdate.modifiedCount > 0) {
+					sampleReservation = await Reservation.create({ eventId: sampleEvent._id, userId: attendeeUser._id, ticketQuantity, totalPrice, status: 'reserved' });
+					console.log('Fixed sample reservation created for attendee.');
+
+					await Payment.create({ userId: attendeeUser._id, eventId: sampleEvent._id, reservationId: sampleReservation._id, amount: totalPrice, method: 'stripe', transactionId: `pi_mock_${Date.now()}`, status: 'completed' });
+					console.log('Fixed sample payment created for reservation.');
+				} else {
+					console.log('Could not create fixed reservation: not enough available seats.');
+				}
+			} else {
+				console.log('Fixed sample reservation for attendee already exists.');
+			}
+		}
+	}
+	console.log('Finished creating fixed demo data.');
+}
+
 async function createUsers({ organizers = 10, attendees = 200 }) {
 	const organizerDocs = [];
 	for (let i = 0; i < organizers; i += 1) {
@@ -235,6 +318,8 @@ async function main() {
 	const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/event_marketplace';
 	await connectToDatabase(mongoUri);
 	await dropDemoDataIfRequested();
+
+	await createFixedDemoData();
 
 	const organizers = Number(process.env.DEMO_ORGANIZERS || 20);
 	const attendees = Number(process.env.DEMO_ATTENDEES || 500);

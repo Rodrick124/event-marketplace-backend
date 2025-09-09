@@ -4,6 +4,8 @@ const { requireAuth, requireRoles } = require('../middleware/auth');
 
 router.get('/admin', requireAuth, requireRoles('admin'), controller.adminStats);
 router.get('/organizer', requireAuth, requireRoles('organizer'), controller.organizerStats);
+router.get('/organizer/events', requireAuth, requireRoles('organizer'), controller.getEventsForOrganizerDashboard);
+router.get('/organizer/reservations', requireAuth, requireRoles('organizer'), controller.getReservationsForOrganizerDashboard);
 router.get('/attendee', requireAuth, requireRoles('attendee'), controller.attendeeStats);
 router.get('/admin/users', requireAuth, requireRoles('admin'), controller.getUsersForAdminDashboard);
 router.get('/admin/events', requireAuth, requireRoles('admin'), controller.getEventsForAdminDashboard);

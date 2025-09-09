@@ -154,12 +154,25 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
         ],
         "recentActivity": [
           {
-            "_id": "activity_id",
+            "_id": "reservation_id",
+            "type": "new_reservation",
+            "description": "Jane Doe reserved 2 ticket(s) for Community Tech Meetup",
+            "userId": "user_id_jane",
+            "timestamp": "2024-01-20T14:00:00Z",
+            "metadata": {
+              "eventId": "event_id_tech_meetup",
+              "ticketQuantity": 2
+            }
+          },
+          {
+            "_id": "user_id_john",
             "type": "user_registration",
             "description": "New user registered: John Doe",
-            "userId": "user_id",
-            "timestamp": "2024-01-15T10:30:00Z",
-            "metadata": {}
+            "userId": "user_id_john",
+            "timestamp": "2024-01-19T10:30:00Z",
+            "metadata": {
+              "email": "john.doe@example.com"
+            }
           }
         ]
       }
@@ -463,7 +476,11 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
           "_id": "log_id",
           "type": "user_registration",
           "description": "New user registered: John Doe",
-          "userId": "user_id",
+          "userId": {
+            "_id": "user_id",
+            "name": "John Doe",
+            "email": "john.doe@example.com"
+          },
           "eventId": null,
           "timestamp": "2024-01-15T10:30:00Z",
           "metadata": {
@@ -499,33 +516,147 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
 *   **Response (Success 200):**
     ```json
     {
-        "events": 10,
-        "revenue": 5000.00,
-        "ticketsSold": 100,
-        "performance": [
-            {
-                "_id": "eventId1",
-                "revenue": 2000,
-                "count": 40
-            },
-            {
-                "_id": "eventId2",
-                "revenue": 3000,
-                "count": 60
+      "success": true,
+      "data": {
+        "totalEvents": 12,
+        "upcomingEvents": 5,
+        "totalReservations": 150,
+        "totalRevenue": 7500.00,
+        "totalPaidReservations": 120,
+        "topPerformingEvents": [
+          {
+            "eventId": "event_id_1",
+            "title": "Top Event by Revenue",
+            "revenue": 2500.00,
+            "paidReservations": 50
+          }
+        ],
+        "recentActivity": [
+          {
+            "type": "new_reservation",
+            "description": "John Doe made a reservation for \"Top Event by Revenue\"",
+            "timestamp": "2024-01-20T14:00:00Z",
+            "metadata": {
+              "reservationId": "reservation_id",
+              "userId": "user_id",
+              "eventId": "event_id_1",
+              "ticketQuantity": 2
             }
+          }
         ]
+      }
     }
     ```
 *   **Response (Error 401/403):**
     ```json
     {
-        "message": "Unauthorized"
+        "message": "Unauthorized or Forbidden"
     }
     ```
-    or
+
+### `GET /api/dashboard/organizer/events`
+
+*   **Description:** Get a paginated and filterable list of the organizer's own events.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `organizer`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Query Parameters:**
+    *   `page` (number, optional, default: 1): Page number for pagination.
+    *   `limit` (number, optional, default: 10): Number of items per page.
+    *   `search` (string, optional): Search term for event title.
+    *   `sortBy` (string, optional, default: `createdAt`): Field to sort by.
+    *   `sortOrder` (string, optional, default: `desc`): Sort order (`asc`, `desc`).
+    *   `status` (string, optional): Filter by derived status (`published`, `draft`, `cancelled`, `completed`).
+    *   `approvalStatus` (string, optional): Filter by approval status (`pending`, `approved`, `rejected`).
+*   **Response (Success 200):**
     ```json
     {
-        "message": "Forbidden"
+      "success": true,
+      "data": [
+        {
+          "_id": "event_id",
+          "title": "My Awesome Event",
+          "date": "2024-08-15T09:00:00Z",
+          "price": 50.00,
+          "availableSeats": 80,
+          "totalReservations": 20,
+          "totalRevenue": 1000.00,
+          "status": "published",
+          "approvalStatus": "approved",
+          "createdAt": "2024-06-01T00:00:00Z"
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "limit": 10,
+        "total": 12,
+        "pages": 2
+      }
+    }
+    ```
+*   **Response (Error 401/403):**
+    ```json
+    {
+        "message": "Unauthorized or Forbidden"
+    }
+    ```
+
+### `GET /api/dashboard/organizer/reservations`
+
+*   **Description:** Get a paginated and filterable list of reservations for the organizer's events.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `organizer`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Query Parameters:**
+    *   `page` (number, optional, default: 1): Page number for pagination.
+    *   `limit` (number, optional, default: 10): Number of items per page.
+    *   `search` (string, optional): Search term for attendee name/email.
+    *   `sortBy` (string, optional, default: `reservationDate`): Field to sort by.
+    *   `sortOrder` (string, optional, default: `desc`): Sort order (`asc`, `desc`).
+    *   `status` (string, optional): Filter by reservation status (`pending`, `reserved`, `cancelled`).
+    *   `paymentStatus` (string, optional): Filter by payment status (`completed`, `pending`, `failed`, `unpaid`).
+    *   `eventId` (string, optional): Filter by a specific event ID.
+*   **Response (Success 200):**
+    ```json
+    {
+      "success": true,
+      "data": [
+        {
+          "_id": "reservation_id",
+          "event": {
+            "_id": "event_id",
+            "title": "My Awesome Event"
+          },
+          "user": {
+            "_id": "user_id",
+            "name": "Jane Doe",
+            "email": "jane@example.com"
+          },
+          "ticketQuantity": 2,
+          "totalAmount": 100.00,
+          "status": "reserved",
+          "paymentStatus": "completed",
+          "reservationDate": "2024-07-10T10:00:00Z"
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "limit": 10,
+        "total": 150,
+        "pages": 15
+      }
+    }
+    ```
+*   **Response (Error 401/403):**
+    ```json
+    {
+        "message": "Unauthorized or Forbidden"
     }
     ```
 

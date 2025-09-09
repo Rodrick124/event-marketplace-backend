@@ -162,18 +162,67 @@ exports.getActivityLogs = async (req, res, next) => {
 exports.organizerStats = async (req, res, next) => {
 	try {
 		const organizerId = req.user.id;
-		const [events, payments] = await Promise.all([
-			Event.find({ organizerId }),
+
+		// Find all events for this organizer first to avoid multiple lookups
+		const organizerEvents = await Event.find({ organizerId }).select('_id').lean();
+		const organizerEventIds = organizerEvents.map((e) => e._id);
+
+		const [upcomingEventsCount, totalReservations, performanceStats, recentReservations] = await Promise.all([
+			Event.countDocuments({ _id: { $in: organizerEventIds }, date: { $gte: new Date() } }),
+			Reservation.countDocuments({ eventId: { $in: organizerEventIds } }),
 			Payment.aggregate([
-				{ $lookup: { from: 'events', localField: 'eventId', foreignField: '_id', as: 'event' } },
-				{ $unwind: '$event' },
-				{ $match: { status: 'completed', 'event.organizerId': new mongoose.Types.ObjectId(organizerId) } },
-				{ $group: { _id: '$eventId', revenue: { $sum: '$amount' }, count: { $sum: 1 } } },
+				{ $match: { eventId: { $in: organizerEventIds }, status: 'completed' } },
+				{
+					$lookup: {
+						from: 'events',
+						localField: 'eventId',
+						foreignField: '_id',
+						as: 'eventInfo',
+					},
+				},
+				{ $unwind: '$eventInfo' },
+				{
+					$group: {
+						_id: '$eventId',
+						title: { $first: '$eventInfo.title' },
+						revenue: { $sum: '$amount' },
+						paidReservations: { $sum: 1 },
+					},
+				},
+				{ $sort: { revenue: -1 } },
+				{
+					$project: {
+						_id: 0,
+						eventId: '$_id',
+						title: 1,
+						revenue: 1,
+						paidReservations: 1,
+					},
+				},
 			]),
+			Reservation.find({ eventId: { $in: organizerEventIds } }).sort({ createdAt: -1 }).limit(5).populate('userId', 'name').populate('eventId', 'title'),
 		]);
-		const revenue = payments.reduce((acc, p) => acc + p.revenue, 0);
-		const ticketsSold = payments.reduce((acc, p) => acc + p.count, 0);
-		return res.json({ events: events.length, revenue, ticketsSold, performance: payments });
+
+		const totalRevenue = performanceStats.reduce((acc, p) => acc + p.revenue, 0);
+		const totalPaidReservations = performanceStats.reduce((acc, p) => acc + p.paidReservations, 0);
+
+		return res.json({
+			success: true,
+			data: {
+				totalEvents: organizerEvents.length,
+				upcomingEvents: upcomingEventsCount,
+				totalReservations,
+				totalRevenue,
+				totalPaidReservations,
+				topPerformingEvents: performanceStats.slice(0, 5),
+				recentActivity: recentReservations.map((r) => ({
+					type: 'new_reservation',
+					description: `${r.userId?.name || 'A user'} made a reservation for "${r.eventId?.title}"`,
+					timestamp: r.createdAt,
+					metadata: { reservationId: r._id, userId: r.userId?._id, eventId: r.eventId?._id, ticketQuantity: r.ticketQuantity },
+				})),
+			},
+		});
 	} catch (err) {
 		return next(err);
 	}
@@ -558,6 +607,194 @@ exports.getReservationsForAdminDashboard = async (req, res, next) => {
 						},
 					},
 				],
+				pagination: [{ $count: 'total' }],
+			},
+		});
+
+		const [results] = await Reservation.aggregate(aggregation);
+
+		const data = results?.data || [];
+		const total = results?.pagination[0]?.total || 0;
+		const pages = Math.ceil(total / limitNum);
+
+		return res.json({
+			success: true,
+			data,
+			pagination: { page: pageNum, limit: limitNum, total, pages },
+		});
+	} catch (err) {
+		return next(err);
+	}
+};
+
+exports.getEventsForOrganizerDashboard = async (req, res, next) => {
+	try {
+		const { page = 1, limit = 10, search, sortBy = 'createdAt', sortOrder = 'desc', status, approvalStatus } = req.query;
+		const organizerId = new mongoose.Types.ObjectId(req.user.id);
+
+		const pageNum = parseInt(page, 10);
+		const limitNum = parseInt(limit, 10);
+		const skip = (pageNum - 1) * limitNum;
+
+		// Build initial match stage for fields on the Event model
+		const initialMatch = { organizerId };
+		if (search) {
+			initialMatch.title = { $regex: search, $options: 'i' };
+		}
+		if (approvalStatus) {
+			initialMatch.status = approvalStatus;
+		}
+
+		// Build post-derivation match stage
+		const postMatch = {};
+		if (status) {
+			postMatch.derivedStatus = status;
+		}
+
+		// Build Sort Stage
+		const sortStage = {};
+		sortStage[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+		const aggregation = [
+			{ $match: initialMatch },
+			{
+				$addFields: {
+					derivedStatus: {
+						$switch: {
+							branches: [
+								{ case: { $lt: ['$date', new Date()] }, then: 'completed' },
+								{ case: { $eq: ['$status', 'pending'] }, then: 'draft' },
+								{ case: { $eq: ['$status', 'rejected'] }, then: 'cancelled' },
+								{ case: { $eq: ['$status', 'approved'] }, then: 'published' },
+							],
+							default: 'draft',
+						},
+					},
+				},
+			},
+			{ $match: postMatch },
+			{
+				$lookup: {
+					from: 'reservations',
+					localField: '_id',
+					foreignField: 'eventId',
+					pipeline: [{ $match: { status: 'reserved' } }],
+					as: 'reservations',
+				},
+			},
+			{
+				$lookup: {
+					from: 'payments',
+					localField: '_id',
+					foreignField: 'eventId',
+					pipeline: [{ $match: { status: 'completed' } }],
+					as: 'completedPayments',
+				},
+			},
+			{
+				$addFields: {
+					totalReservations: { $size: '$reservations' },
+					totalRevenue: { $sum: '$completedPayments.amount' },
+				},
+			},
+			{ $sort: sortStage },
+			{
+				$facet: {
+					data: [
+						{ $skip: skip },
+						{ $limit: limitNum },
+						{
+							$project: {
+								_id: 1,
+								title: 1,
+								date: 1,
+								price: 1,
+								availableSeats: 1,
+								totalReservations: 1,
+								totalRevenue: 1,
+								status: '$derivedStatus',
+								approvalStatus: '$status',
+								createdAt: 1,
+							},
+						},
+					],
+					pagination: [{ $count: 'total' }],
+				},
+			},
+		];
+
+		const [results] = await Event.aggregate(aggregation);
+
+		const data = results?.data || [];
+		const total = results?.pagination[0]?.total || 0;
+		const pages = Math.ceil(total / limitNum);
+
+		return res.json({
+			success: true,
+			data,
+			pagination: { page: pageNum, limit: limitNum, total, pages },
+		});
+	} catch (err) {
+		return next(err);
+	}
+};
+
+exports.getReservationsForOrganizerDashboard = async (req, res, next) => {
+	try {
+		const { page = 1, limit = 10, search, sortBy = 'reservationDate', sortOrder = 'desc', status, paymentStatus, eventId } = req.query;
+		const organizerId = new mongoose.Types.ObjectId(req.user.id);
+
+		const pageNum = parseInt(page, 10);
+		const limitNum = parseInt(limit, 10);
+		const skip = (pageNum - 1) * limitNum;
+
+		// Get all event IDs for this organizer
+		const organizerEvents = await Event.find({ organizerId }).select('_id').lean();
+		const organizerEventIds = organizerEvents.map((e) => e._id);
+
+		// Build initial match stage for fields on the Reservation model
+		const initialMatch = { eventId: { $in: organizerEventIds } };
+		if (status) {
+			initialMatch.status = status;
+		}
+		if (eventId) {
+			initialMatch.eventId = new mongoose.Types.ObjectId(eventId);
+		}
+
+		// Build Sort Stage
+		const sortStage = {};
+		let sortField = sortBy;
+		if (sortBy === 'reservationDate') sortField = 'createdAt';
+		if (sortBy === 'totalAmount') sortField = 'totalPrice';
+		sortStage[sortField] = sortOrder === 'asc' ? 1 : -1;
+
+		const aggregation = [
+			{ $match: initialMatch },
+			{ $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
+			{ $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+			{ $lookup: { from: 'events', localField: 'eventId', foreignField: '_id', as: 'event' } },
+			{ $unwind: { path: '$event', preserveNullAndEmptyArrays: true } },
+			{ $lookup: { from: 'payments', localField: '_id', foreignField: 'reservationId', as: 'payment' } },
+			{ $unwind: { path: '$payment', preserveNullAndEmptyArrays: true } },
+			{ $addFields: { derivedPaymentStatus: { $ifNull: ['$payment.status', 'unpaid'] } } },
+		];
+
+		const postLookupMatch = {};
+		if (paymentStatus) {
+			postLookupMatch.derivedPaymentStatus = paymentStatus;
+		}
+		if (search) {
+			postLookupMatch.$or = [{ 'user.name': { $regex: search, $options: 'i' } }, { 'user.email': { $regex: search, $options: 'i' } }];
+		}
+		if (Object.keys(postLookupMatch).length > 0) {
+			aggregation.push({ $match: postLookupMatch });
+		}
+
+		aggregation.push({ $sort: sortStage });
+
+		aggregation.push({
+			$facet: {
+				data: [{ $skip: skip }, { $limit: limitNum }, { $project: { _id: 1, event: { _id: '$event._id', title: '$event.title' }, user: { _id: '$user._id', name: '$user.name', email: '$user.email' }, ticketQuantity: 1, totalAmount: '$totalPrice', status: 1, paymentStatus: '$derivedPaymentStatus', reservationDate: '$createdAt' } }],
 				pagination: [{ $count: 'total' }],
 			},
 		});

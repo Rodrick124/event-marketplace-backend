@@ -150,7 +150,15 @@ curl http://localhost:5000/api/auth/me -H "Authorization: Bearer <JWT>"
 ### Dashboards `/api/dashboard`
 - `GET /admin` Admin stats
 - `GET /organizer` Organizer stats
+- `GET /organizer/events` Organizer: list own events with stats
+- `GET /organizer/reservations` Organizer: list reservations for own events
 - `GET /attendee` Attendee stats
+- `GET /admin/users` Admin: list users with stats
+- `GET /admin/events` Admin: list events with stats
+- `GET /admin/reservations` Admin: list reservations with details
+- `GET /admin/analytics/revenue` Admin: time-series revenue data
+- `GET /admin/analytics/users` Admin: time-series user growth data
+- `GET /admin/activity-logs` Admin: list system activity logs
 
 ## Reservation & Payment Flow
 1. Attendee creates a reservation: seats are decremented atomically when available.
@@ -188,5 +196,3 @@ curl http://localhost:5000/api/auth/me -H "Authorization: Bearer <JWT>"
 
 ## License
 MIT or as specified by your project needs.
-
-
