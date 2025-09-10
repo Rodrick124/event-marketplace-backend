@@ -909,3 +909,38 @@ exports.getUserGrowthAnalytics = async (req, res, next) => {
 		return next(err);
 	}
 };
+
+exports.getOrganizerAnalytics = async (req, res, next) => {
+	try {
+		const { period } = req.query;
+		const { startDate, groupByFormat } = getAnalyticsTimeParams(period);
+		const organizerId = new mongoose.Types.ObjectId(req.user.id);
+
+		// Find all events for this organizer first
+		const organizerEvents = await Event.find({ organizerId }).select('_id').lean();
+		const organizerEventIds = organizerEvents.map((e) => e._id);
+
+		const data = await Payment.aggregate([
+			{
+				$match: {
+					status: 'completed',
+					createdAt: { $gte: startDate },
+					eventId: { $in: organizerEventIds },
+				},
+			},
+			{
+				$group: {
+					_id: { $dateToString: { format: groupByFormat, date: '$createdAt' } },
+					revenue: { $sum: '$amount' },
+					reservations: { $sum: 1 }, // This counts completed payments, which is a good proxy for paid reservations
+				},
+			},
+			{ $sort: { _id: 1 } },
+			{ $project: { _id: 0, date: '$_id', revenue: '$revenue', reservations: '$reservations' } },
+		]);
+
+		return res.json({ success: true, data });
+	} catch (err) {
+		return next(err);
+	}
+};

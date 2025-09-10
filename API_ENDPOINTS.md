@@ -554,6 +554,42 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     }
     ```
 
+### `GET /api/dashboard/organizer/analytics`
+
+*   **Description:** Get time-series data for revenue and reservations for the organizer's events.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `organizer`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Query Parameters:**
+    *   `period` (string, optional, default: `month`): Time period (`week`, `month`, `year`).
+*   **Response (Success 200):**
+    ```json
+    {
+      "success": true,
+      "data": [
+        {
+          "date": "2024-07-01",
+          "revenue": 1500.00,
+          "reservations": 30
+        },
+        {
+          "date": "2024-07-02",
+          "revenue": 1250.00,
+          "reservations": 25
+        }
+      ]
+    }
+    ```
+*   **Response (Error 401/403):**
+    ```json
+    {
+        "message": "Unauthorized or Forbidden"
+    }
+    ```
+
 ### `GET /api/dashboard/organizer/events`
 
 *   **Description:** Get a paginated and filterable list of the organizer's own events.
