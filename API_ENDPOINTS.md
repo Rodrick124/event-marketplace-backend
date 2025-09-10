@@ -696,6 +696,63 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     }
     ```
 
+### `POST /api/dashboard/organizer/create-event`
+
+*   **Description:** Creates a new event from the organizer dashboard. The organizer ID is automatically assigned from the authenticated user.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `organizer`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Request Body:**
+    ```json
+    {
+        "title": "string",
+        "description": "string",
+        "category": "string",
+        "location": {
+            "address": "string",
+            "city": "string",
+            "country": "string"
+        },
+        "date": "string (ISO 8601 format)",
+        "time": "string",
+        "price": "number",
+        "totalSeats": "number",
+        "imageUrl": "string (optional)"
+    }
+    ```
+*   **Response (Success 201):**
+    ```json
+    {
+        "success": true,
+        "data": {
+            "_id": "string",
+            "organizerId": "string",
+            "title": "string",
+            "description": "string",
+            "category": "string",
+            "location": {},
+            "date": "string",
+            "time": "string",
+            "price": 0,
+            "totalSeats": 0,
+            "availableSeats": 0,
+            "status": "pending",
+            "createdAt": "string",
+            "updatedAt": "string"
+        }
+    }
+    ```
+*   **Response (Error 400/401/403):**
+    ```json
+    {
+        "success": false,
+        "message": "Error message"
+    }
+    ```
+
 ### `GET /api/dashboard/attendee`
 
 *   **Description:** Retrieves statistics for the attendee dashboard.

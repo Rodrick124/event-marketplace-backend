@@ -815,6 +815,24 @@ exports.getReservationsForOrganizerDashboard = async (req, res, next) => {
 	}
 };
 
+exports.createEventForOrganizerDashboard = async (req, res, next) => {
+	try {
+		// The organizerId is taken from the authenticated user, not from the request body
+		const organizerId = req.user.id;
+		const eventData = { ...req.body, organizerId };
+
+		const newEvent = await Event.create(eventData);
+
+		return res.status(201).json({ success: true, data: newEvent });
+	} catch (err) {
+		// Handle potential validation errors from Mongoose
+		if (err.name === 'ValidationError') {
+			return res.status(400).json({ success: false, message: err.message, errors: err.errors });
+		}
+		return next(err);
+	}
+};
+
 const getAnalyticsTimeParams = (period = 'month') => {
 	const now = new Date();
 	let startDate;

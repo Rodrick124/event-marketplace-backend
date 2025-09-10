@@ -5,6 +5,7 @@ const { requireAuth, requireRoles } = require('../middleware/auth');
 router.get('/admin', requireAuth, requireRoles('admin'), controller.adminStats);
 router.get('/organizer', requireAuth, requireRoles('organizer'), controller.organizerStats);
 router.get('/organizer/analytics', requireAuth, requireRoles('organizer'), controller.getOrganizerAnalytics);
+router.post('/organizer/create-event', requireAuth, requireRoles('organizer'), controller.createEventForOrganizerDashboard);
 router.get('/organizer/events', requireAuth, requireRoles('organizer'), controller.getEventsForOrganizerDashboard);
 router.get('/organizer/reservations', requireAuth, requireRoles('organizer'), controller.getReservationsForOrganizerDashboard);
 router.get('/attendee', requireAuth, requireRoles('attendee'), controller.attendeeStats);
