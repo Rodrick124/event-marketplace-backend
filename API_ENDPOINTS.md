@@ -753,6 +753,109 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     }
     ```
 
+### `PATCH /api/dashboard/organizer/events/:id`
+
+*   **Description:** Updates an event from the organizer dashboard. The organizer ID is automatically checked to ensure ownership.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `organizer`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Path Parameters:**
+    *   `id`: `string` (Event ID)
+*   **Request Body:** (Partial update of event fields)
+    ```json
+    {
+        "title": "My Updated Awesome Event",
+        "description": "Now with more awesome.",
+        "totalSeats": 150
+    }
+    ```
+*   **Response (Success 200):**
+    ```json
+    {
+        "success": true,
+        "data": {
+            "_id": "string",
+            "organizerId": "string",
+            "title": "My Updated Awesome Event",
+            "description": "Now with more awesome.",
+            "totalSeats": 150,
+            "availableSeats": 130,
+            "status": "approved"
+        }
+    }
+    ```
+*   **Response (Error 400/401/403/404):**
+    ```json
+    {
+        "success": false,
+        "message": "Error message"
+    }
+    ```
+
+### `PATCH /api/dashboard/organizer/events/:id/cancel`
+
+*   **Description:** Cancels an event from the organizer dashboard. This sets the event's status to rejected and cancels all associated active reservations.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `organizer`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Path Parameters:**
+    *   `id`: `string` (Event ID)
+*   **Request Body:** (Empty)
+*   **Response (Success 200):**
+    ```json
+    {
+        "success": true,
+        "message": "Event has been cancelled successfully. All active reservations have also been cancelled.",
+        "data": {
+            "_id": "string",
+            "organizerId": "string",
+            "title": "My Awesome Event",
+            "status": "rejected"
+        }
+    }
+    ```
+*   **Response (Error 401/403/404):**
+    ```json
+    {
+        "success": false,
+        "message": "Event not found or you are not authorized to cancel it."
+    }
+    ```
+
+### `DELETE /api/dashboard/organizer/events/:id`
+
+*   **Description:** Deletes an event from the organizer dashboard. This is a hard delete and is only permitted if the event has no reservations. For events with reservations, use the `cancel` endpoint instead.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `organizer`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Path Parameters:**
+    *   `id`: `string` (Event ID)
+*   **Request Body:** (Empty)
+*   **Response (Success 204 No Content):** (Empty response body)
+*   **Response (Error 400/401/403/404):**
+    ```json
+    {
+        "success": false,
+        "message": "Cannot delete an event that has reservations. Please use the cancel action instead."
+    }
+    ```
+    or
+    ```json
+    {
+        "success": false,
+        "message": "Event not found or you are not authorized to delete it."
+    }
+    ```
+
 ### `GET /api/dashboard/attendee`
 
 *   **Description:** Retrieves statistics for the attendee dashboard.

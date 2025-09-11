@@ -1,12 +1,17 @@
 const router = require('express').Router();
+const { body } = require('express-validator');
 const controller = require('../controllers/dashboard.controller');
 const { requireAuth, requireRoles } = require('../middleware/auth');
+const { eventValidationRules, updateEventValidationRules } = require('../../event.validator');
 
 router.get('/admin', requireAuth, requireRoles('admin'), controller.adminStats);
 router.get('/organizer', requireAuth, requireRoles('organizer'), controller.organizerStats);
 router.get('/organizer/analytics', requireAuth, requireRoles('organizer'), controller.getOrganizerAnalytics);
-router.post('/organizer/create-event', requireAuth, requireRoles('organizer'), controller.createEventForOrganizerDashboard);
+router.post('/organizer/create-event', requireAuth, requireRoles('organizer'), eventValidationRules, controller.createEventForOrganizerDashboard);
 router.get('/organizer/events', requireAuth, requireRoles('organizer'), controller.getEventsForOrganizerDashboard);
+router.patch('/organizer/events/:id', requireAuth, requireRoles('organizer'), updateEventValidationRules, controller.updateEventForOrganizerDashboard);
+router.patch('/organizer/events/:id/cancel', requireAuth, requireRoles('organizer'), controller.cancelEventForOrganizerDashboard);
+router.delete('/organizer/events/:id', requireAuth, requireRoles('organizer'), controller.deleteEventForOrganizerDashboard);
 router.get('/organizer/reservations', requireAuth, requireRoles('organizer'), controller.getReservationsForOrganizerDashboard);
 router.get('/attendee', requireAuth, requireRoles('attendee'), controller.attendeeStats);
 router.get('/admin/users', requireAuth, requireRoles('admin'), controller.getUsersForAdminDashboard);

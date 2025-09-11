@@ -1,14 +1,22 @@
 const { validationResult } = require('express-validator');
+const mongoose = require('mongoose');
 const Event = require('../models/Event');
+const Reservation = require('../models/Reservation');
+const Payment = require('../models/Payment');
 
 exports.createEvent = async (req, res, next) => {
 	try {
 		const errors = validationResult(req);
-		if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+		if (!errors.isEmpty()) {
+			return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
+		}
 		const payload = { ...req.body, organizerId: req.user.id, availableSeats: req.body.totalSeats };
 		const event = await Event.create(payload);
-		return res.status(201).json(event);
+		return res.status(201).json({ success: true, data: event });
 	} catch (err) {
+		if (err.name === 'ValidationError') {
+			return res.status(400).json({ success: false, message: err.message, errors: err.errors });
+		}
 		return next(err);
 	}
 };
@@ -59,27 +67,74 @@ exports.getEventById = async (req, res, next) => {
 
 exports.updateEvent = async (req, res, next) => {
 	try {
+		const errors = validationResult(req);
+		if (!errors.isEmpty()) {
+			return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
+		}
+
 		const updates = { ...req.body };
-		if (req.user.role !== 'admin') delete updates.status;
-		const event = await Event.findOneAndUpdate(
-			{ _id: req.params.id, ...(req.user.role === 'organizer' ? { organizerId: req.user.id } : {}) },
-			updates,
-			{ new: true }
-		);
-		if (!event) return res.status(404).json({ message: 'Event not found or unauthorized' });
-		return res.json(event);
+		// Non-admins cannot change the event status directly through this endpoint
+		if (req.user.role !== 'admin') {
+			delete updates.status;
+		}
+
+		// Organizers can only update their own events
+		const query = { _id: req.params.id };
+		if (req.user.role === 'organizer') {
+			query.organizerId = req.user.id;
+		}
+
+		const event = await Event.findOneAndUpdate(query, { $set: updates }, { new: true, runValidators: true });
+
+		if (!event) {
+			return res.status(404).json({ success: false, message: 'Event not found or you are not authorized to edit it.' });
+		}
+
+		return res.json({ success: true, data: event });
 	} catch (err) {
+		if (err.name === 'ValidationError') {
+			return res.status(400).json({ success: false, message: err.message, errors: err.errors });
+		}
 		return next(err);
 	}
 };
 
 exports.deleteEvent = async (req, res, next) => {
+	const isReplicaSet = mongoose.connection.client.topology && mongoose.connection.client.topology.s.options.replicaSet;
+	const session = isReplicaSet ? await mongoose.startSession() : null;
 	try {
-		const event = await Event.findOneAndDelete({ _id: req.params.id, ...(req.user.role === 'organizer' ? { organizerId: req.user.id } : {}) });
-		if (!event) return res.status(404).json({ message: 'Event not found or unauthorized' });
+		if (session) session.startTransaction();
+		const { id } = req.params;
+
+		const query = { _id: id };
+		if (req.user.role === 'organizer') {
+			query.organizerId = req.user.id;
+		}
+
+		const event = await Event.findOne(query).session(session);
+		if (!event) {
+			throw { status: 404, message: 'Event not found or you are not authorized to delete it.' };
+		}
+
+		const reservationCount = await Reservation.countDocuments({ eventId: id }).session(session);
+		if (reservationCount > 0) {
+			throw { status: 400, message: 'Cannot delete an event that has reservations. Please cancel the event instead.' };
+		}
+
+		await Payment.deleteMany({ eventId: id }, { session });
+		await event.deleteOne({ session });
+
+		if (session) await session.commitTransaction();
+
 		return res.status(204).send();
 	} catch (err) {
+		if (session) await session.abortTransaction();
+		if (err.status) {
+			return res.status(err.status).json({ message: err.message });
+		}
 		return next(err);
+	} finally {
+		if (session) session.endSession();
 	}
 };
 
@@ -87,8 +142,10 @@ exports.updateEventStatus = async (req, res, next) => {
 	try {
 		const { status } = req.body;
 		const event = await Event.findByIdAndUpdate(req.params.id, { status }, { new: true });
-		if (!event) return res.status(404).json({ message: 'Event not found' });
-		return res.json(event);
+		if (!event) {
+			return res.status(404).json({ success: false, message: 'Event not found' });
+		}
+		return res.json({ success: true, data: event });
 	} catch (err) {
 		return next(err);
 	}
