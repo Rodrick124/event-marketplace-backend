@@ -675,6 +675,48 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     }
     ```
 
+### `GET /api/dashboard/organizer/events/:id`
+
+*   **Description:** Retrieves a single event with detailed stats for the organizer dashboard.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `organizer`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Path Parameters:**
+    *   `id`: `string` (Event ID)
+*   **Response (Success 200):**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "_id": "event_id",
+        "title": "My Awesome Event",
+        "description": "An awesome event.",
+        "date": "2024-08-15T09:00:00Z",
+        "price": 50.00,
+        "availableSeats": 80,
+        "totalSeats": 100,
+        "status": "pending",
+        "stats": {
+            "tickets": {
+                "reserved": 20,
+                "cancelled": 5
+            },
+            "revenue": 1000.00
+        }
+      }
+    }
+    ```
+*   **Response (Error 401/403/404):**
+    ```json
+    {
+        "success": false,
+        "message": "Event not found or you are not authorized to view it."
+    }
+    ```
+
 ### `GET /api/dashboard/organizer/reservations`
 
 *   **Description:** Get a paginated and filterable list of reservations for the organizer's events.
@@ -865,7 +907,7 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
 
 ### `DELETE /api/dashboard/organizer/events/:id`
 
-*   **Description:** Deletes an event from the organizer dashboard. This is a hard delete and is only permitted if the event has no reservations. For events with reservations, use the `cancel` endpoint instead.
+*   **Description:** Deletes an event from the organizer dashboard. This is a hard delete and is only permitted if the event has no reservations. For events with reservations, use the `cancel` endpoint instead. This route now uses the same robust logic as the generic `DELETE /api/events/:id` endpoint.
 *   **Authentication:** Required (JWT in Authorization header)
 *   **Roles:** `organizer`
 *   **Request Headers:**
@@ -881,13 +923,6 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     {
         "success": false,
         "message": "Cannot delete an event that has reservations. Please use the cancel action instead."
-    }
-    ```
-    or
-    ```json
-    {
-        "success": false,
-        "message": "Event not found or you are not authorized to delete it."
     }
     ```
 
@@ -1083,7 +1118,7 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
 
 ### `PATCH /api/events/:id`
 
-*   **Description:** Updates an existing event.
+*   **Description:** Updates an existing event. Organizers can only update their own events. Admins can update any event. The event `status` cannot be changed via this endpoint. If `totalSeats` is updated, `availableSeats` will be recalculated.
 *   **Authentication:** Required (JWT in Authorization header)
 *   **Roles:** `organizer`, `admin`
 *   **Path Parameters:**
@@ -1092,36 +1127,38 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     ```
     Authorization: Bearer <JWT_TOKEN>
     ```
-*   **Request Body:** (Partial update, any of the fields from POST /api/events)
+*   **Request Body:** (Partial update of event fields)
     ```json
     {
-        "title": "string (min 3 characters)",
-        "description": "string (min 10 characters)"
-        // ... other fields
+        "title": "My Updated Awesome Event",
+        "description": "Now with more awesome.",
+        "totalSeats": 150
     }
     ```
 *   **Response (Success 200):**
     ```json
     {
-        "message": "Event updated successfully",
-        "event": {
+        "success": true,
+        "data": {
             "_id": "string",
-            "title": "string",
-            "description": "string"
-            // ... updated fields
+            "title": "My Updated Awesome Event",
+            "description": "Now with more awesome.",
+            "totalSeats": 150,
+            "availableSeats": 130
         }
     }
     ```
 *   **Response (Error 400/401/403/404):**
     ```json
     {
+        "success": false,
         "message": "Error message"
     }
     ```
 
 ### `DELETE /api/events/:id`
 
-*   **Description:** Deletes an event.
+*   **Description:** Deletes an event. This is a hard delete and is only permitted if the event has no reservations. For events with reservations, use the `cancel` action instead. Organizers can only delete their own events.
 *   **Authentication:** Required (JWT in Authorization header)
 *   **Roles:** `organizer`, `admin`
 *   **Path Parameters:**
@@ -1130,16 +1167,19 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     ```
     Authorization: Bearer <JWT_TOKEN>
     ```
-*   **Response (Success 200):**
+*   **Response (Success 204 No Content):** (Empty response body)
+*   **Response (Error 400):**
     ```json
     {
-        "message": "Event deleted successfully"
+        "success": false,
+        "message": "Cannot delete an event that has reservations. Please use the cancel action instead."
     }
     ```
 *   **Response (Error 401/403/404):**
     ```json
     {
-        "message": "Error message"
+        "success": false,
+        "message": "Event not found or you are not authorized to delete it."
     }
     ```
 

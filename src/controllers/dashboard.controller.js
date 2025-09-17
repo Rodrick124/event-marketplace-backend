@@ -816,6 +816,40 @@ exports.getReservationsForOrganizerDashboard = async (req, res, next) => {
 	}
 };
 
+exports.getEventForOrganizerDashboard = async (req, res, next) => {
+	try {
+		const { id } = req.params;
+		const organizerId = new mongoose.Types.ObjectId(req.user.id);
+
+		const event = await Event.findOne({ _id: id, organizerId }).lean();
+
+		if (!event) {
+			return res.status(404).json({ success: false, message: 'Event not found or you are not authorized to view it.' });
+		}
+
+		// Enrich with stats for a detailed view
+		const [reservationStats, revenueStats] = await Promise.all([
+			Reservation.aggregate([
+				{ $match: { eventId: event._id } },
+				{ $group: { _id: '$status', count: { $sum: '$ticketQuantity' } } }, // Summing ticket quantity is more useful than counting reservations
+			]),
+			Payment.aggregate([
+				{ $match: { eventId: event._id, status: 'completed' } },
+				{ $group: { _id: null, total: { $sum: '$amount' } } },
+			]),
+		]);
+
+		const stats = {
+			tickets: reservationStats.reduce((acc, cur) => ({ ...acc, [cur._id]: cur.count }), {}),
+			revenue: revenueStats[0]?.total || 0,
+		};
+
+		return res.json({ success: true, data: { ...event, stats } });
+	} catch (err) {
+		return next(err);
+	}
+};
+
 exports.createEventForOrganizerDashboard = async (req, res, next) => {
 	try {
 		const errors = validationResult(req);
@@ -831,53 +865,6 @@ exports.createEventForOrganizerDashboard = async (req, res, next) => {
 		const newEvent = await Event.create(eventData);
 
 		return res.status(201).json({ success: true, data: newEvent });
-	} catch (err) {
-		if (err.name === 'ValidationError') {
-			return res.status(400).json({ success: false, message: err.message, errors: err.errors });
-		}
-		return next(err);
-	}
-};
-
-exports.updateEventForOrganizerDashboard = async (req, res, next) => {
-	try {
-		const errors = validationResult(req);
-		if (!errors.isEmpty()) {
-			return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
-		}
-
-		const { id } = req.params;
-		const organizerId = new mongoose.Types.ObjectId(req.user.id);
-		const updates = { ...req.body };
-
-		// Organizers should not be able to change the approval status or owner
-		delete updates.status;
-		delete updates.organizerId;
-
-		// If totalSeats is being updated, we need to handle availableSeats carefully
-		if (updates.totalSeats !== undefined) {
-			const event = await Event.findOne({ _id: id, organizerId });
-			if (!event) {
-				return res.status(404).json({ success: false, message: 'Event not found or you are not authorized to edit it.' });
-			}
-			const newTotalSeats = parseInt(updates.totalSeats, 10);
-			if (isNaN(newTotalSeats)) {
-				return res.status(400).json({ success: false, message: 'Invalid value for totalSeats.' });
-			}
-			const seatsSold = event.totalSeats - event.availableSeats;
-			if (newTotalSeats < seatsSold) {
-				return res.status(400).json({ success: false, message: `Cannot reduce total seats below the number already sold (${seatsSold}).` });
-			}
-			updates.availableSeats = newTotalSeats - seatsSold;
-		}
-
-		const updatedEvent = await Event.findOneAndUpdate({ _id: id, organizerId }, { $set: updates }, { new: true, runValidators: true });
-
-		if (!updatedEvent) {
-			return res.status(404).json({ success: false, message: 'Event not found or you are not authorized to edit it.' });
-		}
-
-		return res.json({ success: true, data: updatedEvent });
 	} catch (err) {
 		if (err.name === 'ValidationError') {
 			return res.status(400).json({ success: false, message: err.message, errors: err.errors });
@@ -916,43 +903,6 @@ exports.cancelEventForOrganizerDashboard = async (req, res, next) => {
 		if (session) await session.commitTransaction();
 
 		return res.json({ success: true, message: 'Event has been cancelled successfully. All active reservations have also been cancelled.', data: event });
-	} catch (err) {
-		if (session) await session.abortTransaction();
-		if (err.status) {
-			return res.status(err.status).json({ success: false, message: err.message });
-		}
-		return next(err);
-	} finally {
-		if (session) session.endSession();
-	}
-};
-
-exports.deleteEventForOrganizerDashboard = async (req, res, next) => {
-	const isReplicaSet = mongoose.connection.client.topology && mongoose.connection.client.topology.s.options.replicaSet;
-	const session = isReplicaSet ? await mongoose.startSession() : null;
-	try {
-		if (session) session.startTransaction();
-		const { id } = req.params;
-		const organizerId = new mongoose.Types.ObjectId(req.user.id);
-
-		const event = await Event.findOne({ _id: id, organizerId }).session(session);
-
-		if (!event) {
-			throw { status: 404, message: 'Event not found or you are not authorized to delete it.' };
-		}
-
-		const reservationCount = await Reservation.countDocuments({ eventId: id }).session(session);
-
-		if (reservationCount > 0) {
-			throw { status: 400, message: 'Cannot delete an event that has reservations. Please use the cancel action instead.' };
-		}
-
-		await Payment.deleteMany({ eventId: id }, { session });
-		await event.deleteOne({ session });
-
-		if (session) await session.commitTransaction();
-
-		return res.status(204).send();
 	} catch (err) {
 		if (session) await session.abortTransaction();
 		if (err.status) {

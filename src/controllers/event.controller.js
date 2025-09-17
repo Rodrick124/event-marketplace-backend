@@ -72,14 +72,34 @@ exports.updateEvent = async (req, res, next) => {
 			return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
 		}
 
+		const { id } = req.params;
 		const updates = { ...req.body };
 		// Status must be updated via the dedicated /status endpoint to handle side-effects (e.g., cancelling reservations).
 		delete updates.status;
+		// Prevent changing owner
+		delete updates.organizerId;
 
 		// Organizers can only update their own events
-		const query = { _id: req.params.id };
+		const query = { _id: id };
 		if (req.user.role === 'organizer') {
 			query.organizerId = req.user.id;
+		}
+
+		// If totalSeats is being updated, we need to handle availableSeats carefully
+		if (updates.totalSeats !== undefined) {
+			const event = await Event.findOne(query);
+			if (!event) {
+				return res.status(404).json({ success: false, message: 'Event not found or you are not authorized to edit it.' });
+			}
+			const newTotalSeats = parseInt(updates.totalSeats, 10);
+			if (isNaN(newTotalSeats)) {
+				return res.status(400).json({ success: false, message: 'Invalid value for totalSeats.' });
+			}
+			const seatsSold = event.totalSeats - event.availableSeats;
+			if (newTotalSeats < seatsSold) {
+				return res.status(400).json({ success: false, message: `Cannot reduce total seats below the number already sold (${seatsSold}).` });
+			}
+			updates.availableSeats = newTotalSeats - seatsSold;
 		}
 
 		const event = await Event.findOneAndUpdate(query, { $set: updates }, { new: true, runValidators: true });
@@ -116,7 +136,7 @@ exports.deleteEvent = async (req, res, next) => {
 
 		const reservationCount = await Reservation.countDocuments({ eventId: id }).session(session);
 		if (reservationCount > 0) {
-			throw { status: 400, message: 'Cannot delete an event that has reservations. Please cancel the event instead.' };
+			throw { status: 400, message: 'Cannot delete an event that has reservations. Please use the cancel action instead.' };
 		}
 
 		await Payment.deleteMany({ eventId: id }, { session });
@@ -128,7 +148,7 @@ exports.deleteEvent = async (req, res, next) => {
 	} catch (err) {
 		if (session) await session.abortTransaction();
 		if (err.status) {
-			return res.status(err.status).json({ message: err.message });
+			return res.status(err.status).json({ success: false, message: err.message });
 		}
 		return next(err);
 	} finally {
