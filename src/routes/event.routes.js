@@ -12,6 +12,5 @@ router.get('/:id', controller.getEventById);
 
 router.patch('/:id', requireAuth, requireRoles('organizer', 'admin'), updateEventValidationRules, controller.updateEvent);
 router.delete('/:id', requireAuth, requireRoles('organizer', 'admin'), controller.deleteEvent);
-router.patch('/:id/status', requireAuth, requireRoles('admin'), body('status').isIn(['pending', 'approved', 'rejected']), controller.updateEventStatus);
 
 module.exports = router;

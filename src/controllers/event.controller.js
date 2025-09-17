@@ -73,10 +73,8 @@ exports.updateEvent = async (req, res, next) => {
 		}
 
 		const updates = { ...req.body };
-		// Non-admins cannot change the event status directly through this endpoint
-		if (req.user.role !== 'admin') {
-			delete updates.status;
-		}
+		// Status must be updated via the dedicated /status endpoint to handle side-effects (e.g., cancelling reservations).
+		delete updates.status;
 
 		// Organizers can only update their own events
 		const query = { _id: req.params.id };
@@ -139,15 +137,34 @@ exports.deleteEvent = async (req, res, next) => {
 };
 
 exports.updateEventStatus = async (req, res, next) => {
+	const isReplicaSet = mongoose.connection.client.topology && mongoose.connection.client.topology.s.options.replicaSet;
+	const session = isReplicaSet ? await mongoose.startSession() : null;
 	try {
+		if (session) session.startTransaction();
 		const { status } = req.body;
-		const event = await Event.findByIdAndUpdate(req.params.id, { status }, { new: true });
+		const { id } = req.params;
+
+		const event = await Event.findByIdAndUpdate(id, { status }, { new: true, session });
 		if (!event) {
-			return res.status(404).json({ success: false, message: 'Event not found' });
+			throw { status: 404, message: 'Event not found' };
 		}
+
+		// If event is rejected (cancelled), cancel all active reservations for it.
+		if (status === 'rejected') {
+			await Reservation.updateMany({ eventId: id, status: 'reserved' }, { $set: { status: 'cancelled' } }, { session });
+		}
+
+		if (session) await session.commitTransaction();
+
 		return res.json({ success: true, data: event });
 	} catch (err) {
+		if (session) await session.abortTransaction();
+		if (err.status) {
+			return res.status(err.status).json({ success: false, message: err.message });
+		}
 		return next(err);
+	} finally {
+		if (session) session.endSession();
 	}
 };
 

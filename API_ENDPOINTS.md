@@ -313,6 +313,41 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     }
     ```
 
+### `PATCH /api/dashboard/admin/events/:id/status`
+
+*   **Description:** Updates the approval status of an event (`pending`, `approved`, `rejected`). If an event is rejected, all its active reservations will be cancelled.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `admin`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Path Parameters:**
+    *   `id`: `string` (Event ID)
+*   **Request Body:**
+    ```json
+    {
+        "status": "string ('pending', 'approved', 'rejected')"
+    }
+    ```
+*   **Response (Success 200):**
+    ```json
+    {
+        "success": true,
+        "data": {
+            "_id": "string",
+            "status": "approved"
+        }
+    }
+    ```
+*   **Response (Error 400/401/403/404):**
+    ```json
+    {
+        "success": false,
+        "message": "Event not found"
+    }
+    ```
+
 ### `GET /api/dashboard/admin/reservations`
 
 *   **Description:** Get a paginated and filterable list of all reservations with detailed info.
@@ -1102,40 +1137,6 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     }
     ```
 *   **Response (Error 401/403/404):**
-    ```json
-    {
-        "message": "Error message"
-    }
-    ```
-
-### `PATCH /api/events/:id/status`
-
-*   **Description:** Updates the status of an event (e.g., pending, approved, rejected).
-*   **Authentication:** Required (JWT in Authorization header)
-*   **Roles:** `admin`
-*   **Path Parameters:**
-    *   `id`: `string` (Event ID)
-*   **Request Headers:**
-    ```
-    Authorization: Bearer <JWT_TOKEN>
-    ```
-*   **Request Body:**
-    ```json
-    {
-        "status": "string ('pending', 'approved', 'rejected')"
-    }
-    ```
-*   **Response (Success 200):**
-    ```json
-    {
-        "message": "Event status updated successfully",
-        "event": {
-            "_id": "string",
-            "status": "string"
-        }
-    }
-    ```
-*   **Response (Error 400/401/403/404):**
     ```json
     {
         "message": "Error message"
