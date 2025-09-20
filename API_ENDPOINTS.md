@@ -1020,6 +1020,92 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     }
     ```
 
+### `GET /api/dashboard/profile`
+
+*   **Description:** Retrieves the detailed profile for the currently authenticated user, regardless of their role (attendee, organizer, or admin).
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Response (Success 200):**
+    ```json
+    {
+        "success": true,
+        "data": {
+            "_id": "userId",
+            "name": "Current User Name",
+            "email": "user@example.com",
+            "role": "organizer",
+            "status": "active",
+            "profile": {
+                "avatar": "https://i.pravatar.cc/150?u=user@example.com",
+                "phone": "123-456-7890",
+                "bio": "User bio here.",
+                "organization": "User's Company"
+            },
+            "createdAt": "2024-07-21T12:00:00Z",
+            "updatedAt": "2024-07-21T12:00:00Z"
+        }
+    }
+    ```
+*   **Response (Error 401/404):**
+    ```json
+    {
+        "success": false,
+        "message": "Unauthorized or User not found."
+    }
+    ```
+
+### `PATCH /api/dashboard/profile`
+
+*   **Description:** Updates the profile for the currently authenticated user. Any fields provided will be updated.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Request Body:** (Partial update, any of the fields below are optional)
+    ```json
+    {
+        "name": "My New Name",
+        "profile": {
+            "bio": "An updated bio about my interests.",
+            "phone": "987-654-3210",
+            "avatar": "https://new-avatar-url.com/image.png",
+            "organization": "My New Company"
+        }
+    }
+    ```
+*   **Response (Success 200):**
+    ```json
+    {
+        "success": true,
+        "data": {
+            "_id": "userId",
+            "name": "My New Name",
+            "email": "user@example.com",
+            "role": "organizer",
+            "status": "active",
+            "profile": {
+                "avatar": "https://new-avatar-url.com/image.png",
+                "phone": "987-654-3210",
+                "bio": "An updated bio about my interests.",
+                "organization": "My New Company"
+            },
+            "createdAt": "2024-07-21T12:00:00Z",
+            "updatedAt": "2024-07-22T10:00:00Z"
+        }
+    }
+    ```
+*   **Response (Error 400/401/404):**
+    ```json
+    {
+        "success": false,
+        "message": "Validation failed or User not found."
+    }
+    ```
+
 ---
 
 ## Event Endpoints (`/api/events`)

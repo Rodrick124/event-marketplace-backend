@@ -266,6 +266,65 @@ exports.getAttendeeReservedEvents = async (req, res, next) => {
 	}
 };
 
+exports.getMyProfile = async (req, res, next) => {
+	try {
+		const user = await User.findById(req.user.id).select('-password');
+
+		if (!user) {
+			return res.status(404).json({ success: false, message: 'User not found' });
+		}
+
+		return res.json({ success: true, data: user });
+	} catch (err) {
+		return next(err);
+	}
+};
+
+exports.updateMyProfile = async (req, res, next) => {
+	try {
+		const errors = validationResult(req);
+		if (!errors.isEmpty()) {
+			return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
+		}
+
+		const { name, profile } = req.body;
+		const userId = req.user.id;
+
+		const allowedProfileFields = ['avatar', 'phone', 'bio', 'organization'];
+		const updates = {};
+
+		if (name !== undefined) {
+			updates.name = name;
+		}
+
+		if (profile) {
+			for (const key of allowedProfileFields) {
+				// Allow setting fields to null or empty string to clear them
+				if (profile[key] !== undefined) {
+					updates[`profile.${key}`] = profile[key];
+				}
+			}
+		}
+
+		if (Object.keys(updates).length === 0) {
+			return res.status(400).json({ success: false, message: 'No valid fields to update provided.' });
+		}
+
+		const updatedUser = await User.findByIdAndUpdate(userId, { $set: updates }, { new: true, runValidators: true }).select('-password');
+
+		if (!updatedUser) {
+			return res.status(404).json({ success: false, message: 'User not found' });
+		}
+
+		return res.json({ success: true, data: updatedUser });
+	} catch (err) {
+		if (err.name === 'ValidationError') {
+			return res.status(400).json({ success: false, message: err.message, errors: err.errors });
+		}
+		return next(err);
+	}
+};
+
 exports.getUsersForAdminDashboard = async (req, res, next) => {
 	try {
 		const { page = 1, limit = 10, search, status, sortBy = 'registrationDate', sortOrder = 'desc' } = req.query;
