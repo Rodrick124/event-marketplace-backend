@@ -1472,14 +1472,15 @@ All endpoints in this section require authentication as an `attendee`.
         "userId": "string",
         "eventId": "string",
         "ticketQuantity": "number",
-        "status": "pending",
+        "totalPrice": "number",
+        "status": "reserved",
         "createdAt": "string (ISO date)"
     }
     ```
 *   **Response (Error 400/401/403/500):**
     ```json
     {
-        "message": "Error message"
+        "message": "Event not available or insufficient seats"
     }
     ```
 
@@ -1548,6 +1549,7 @@ All endpoints in this section require authentication as an `attendee`.
                 "date": "string"
             },
             "ticketQuantity": "number",
+            "totalPrice": "number",
             "status": "string",
             "createdAt": "string (ISO date)"
         }
@@ -1574,13 +1576,23 @@ All endpoints in this section require authentication as an `attendee`.
 *   **Response (Success 200):**
     ```json
     {
-        "message": "Reservation cancelled successfully"
+        "message": "Reservation cancelled successfully",
+        "reservation": {
+            "_id": "string",
+            "userId": "string",
+            "eventId": "string",
+            "ticketQuantity": "number",
+            "totalPrice": "number",
+            "status": "cancelled",
+            "createdAt": "string (ISO date)",
+            "updatedAt": "string (ISO date)"
+        }
     }
     ```
 *   **Response (Error 401/403/404/500):**
     ```json
     {
-        "message": "Error message"
+        "message": "Reservation not found or you do not own it."
     }
     ```
 
