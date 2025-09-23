@@ -1338,6 +1338,115 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
 
 ---
 
+## Cart Endpoints (`/api/cart`)
+
+All endpoints in this section require authentication as an `attendee`.
+
+### `GET /api/cart`
+
+*   **Description:** Retrieves the current user's shopping cart.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `attendee`
+*   **Response (Success 200):**
+    ```json
+    {
+        "success": true,
+        "data": {
+            "_id": "cart_id",
+            "userId": "user_id",
+            "items": [
+                {
+                    "_id": "cart_item_id",
+                    "quantity": 2,
+                    "eventId": {
+                        "_id": "event_id",
+                        "title": "Community Tech Meetup",
+                        "price": 25.00,
+                        "imageUrl": "image_url",
+                        "availableSeats": 98,
+                        "date": "2024-08-15T18:30:00Z"
+                    }
+                }
+            ]
+        }
+    }
+    ```
+
+### `POST /api/cart`
+
+*   **Description:** Adds an item (event tickets) to the cart. If the item already exists, the quantity is increased.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `attendee`
+*   **Request Body:**
+    ```json
+    {
+        "eventId": "string (Event ID)",
+        "quantity": "number (integer, min 1)"
+    }
+    ```
+*   **Response (Success 200):**
+    ```json
+    {
+        "success": true,
+        "message": "Item added to cart.",
+        "data": { "... cart object ..." }
+    }
+    ```
+
+### `DELETE /api/cart`
+
+*   **Description:** Clears all items from the user's cart.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `attendee`
+*   **Response (Success 200):**
+    ```json
+    {
+        "success": true,
+        "message": "Cart cleared.",
+        "data": { "... empty cart object ..." }
+    }
+    ```
+
+### `PATCH /api/cart/items/:itemId`
+
+*   **Description:** Updates the quantity of a specific item in the cart.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `attendee`
+*   **Path Parameters:**
+    *   `itemId`: `string` (Cart Item ID)
+*   **Request Body:**
+    ```json
+    {
+        "quantity": "number (integer, min 1)"
+    }
+    ```
+*   **Response (Success 200):**
+    ```json
+    {
+        "success": true,
+        "message": "Cart updated.",
+        "data": { "... cart object ..." }
+    }
+    ```
+
+### `DELETE /api/cart/items/:itemId`
+
+*   **Description:** Removes a specific item from the cart.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `attendee`
+*   **Path Parameters:**
+    *   `itemId`: `string` (Cart Item ID)
+*   **Response (Success 200):**
+    ```json
+    {
+        "success": true,
+        "message": "Item removed from cart.",
+        "data": { "... cart object ..." }
+    }
+    ```
+
+---
+
 ## Reservation Endpoints (`/api/reservations`)
 
 ### `POST /api/reservations`
@@ -1371,6 +1480,50 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     ```json
     {
         "message": "Error message"
+    }
+    ```
+
+### `POST /api/reservations/from-cart`
+
+*   **Description:** Creates reservations for all items in the user's cart. This is the "checkout" action for a cart. It atomically reserves seats and clears the cart upon success.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `attendee`
+*   **Request Body:** (Empty)
+*   **Response (Success 201):**
+    ```json
+    {
+        "success": true,
+        "message": "Reservations created successfully from your cart. Please proceed to payment for each reservation.",
+        "data": [
+            {
+                "_id": "reservation_id_1",
+                "userId": "user_id",
+                "eventId": "event_id_1",
+                "ticketQuantity": 2,
+                "status": "reserved"
+            },
+            {
+                "_id": "reservation_id_2",
+                "userId": "user_id",
+                "eventId": "event_id_2",
+                "ticketQuantity": 1,
+                "status": "reserved"
+            }
+        ]
+    }
+    ```
+*   **Response (Error 400/409):**
+    ```json
+    {
+        "success": false,
+        "message": "Your cart is empty."
+    }
+    ```
+    or
+    ```json
+    {
+        "success": false,
+        "message": "Could not reserve all items due to a stock change. Please try again."
     }
     ```
 

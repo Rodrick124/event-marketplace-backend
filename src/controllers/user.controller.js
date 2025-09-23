@@ -13,14 +13,37 @@ exports.listUsers = async (req, res, next) => {
 exports.updateMyProfile = async (req, res, next) => {
 	try {
 		const errors = validationResult(req);
-		if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-		const updates = { ...req.body };
-		delete updates.role;
-		delete updates.status;
-		delete updates.password;
-		const user = await User.findByIdAndUpdate(req.user.id, updates, { new: true }).select('-password');
-		return res.json(user);
+		if (!errors.isEmpty()) {
+			return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
+		}
+
+		const { name, email, profile } = req.body;
+
+		const user = await User.findById(req.user.id);
+		if (!user) {
+			return res.status(404).json({ message: 'User not found' });
+		}
+
+		if (name) user.name = name;
+		if (email) user.email = email;
+
+		if (profile && typeof profile === 'object') {
+			if (!user.profile) user.profile = {};
+			Object.assign(user.profile, profile);
+		}
+
+		const updatedUser = await user.save();
+		const userObject = updatedUser.toObject();
+		delete userObject.password;
+
+		return res.json({ message: 'Profile updated successfully', user: userObject });
 	} catch (err) {
+		if (err.name === 'ValidationError') {
+			return res.status(400).json({ message: err.message, errors: err.errors });
+		}
+		if (err.code === 11000) {
+			return res.status(409).json({ message: 'Email already in use.' });
+		}
 		return next(err);
 	}
 };
@@ -36,5 +59,3 @@ exports.updateUserStatus = async (req, res, next) => {
 		return next(err);
 	}
 };
-
-

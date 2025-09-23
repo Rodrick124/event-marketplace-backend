@@ -9,6 +9,7 @@ const userRoutes = require('./routes/user.routes');
 const eventRoutes = require('./routes/event.routes');
 const reservationRoutes = require('./routes/reservation.routes');
 const paymentRoutes = require('./routes/payment.routes');
+const cartRoutes = require('./routes/cart.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const { notFoundHandler, errorHandler } = require('./middleware/error');
 
@@ -35,11 +36,10 @@ app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/reservations', reservationRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/cart', cartRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
 
 module.exports = app;
-
-
