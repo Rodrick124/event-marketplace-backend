@@ -6,20 +6,6 @@ const { eventValidationRules, updateEventValidationRules } = require('../../even
 const eventController = require('../controllers/event.controller');
 
 router.get('/admin', requireAuth, requireRoles('admin'), controller.adminStats);
-router.get('/profile', requireAuth, controller.getMyProfile);
-router.patch(
-	'/profile',
-	requireAuth,
-	[
-		body('name').optional().trim().not().isEmpty().withMessage('Name cannot be empty.'),
-		body('profile').optional().isObject(),
-		body('profile.phone').optional({ checkFalsy: true }).trim().isString(),
-		body('profile.bio').optional({ checkFalsy: true }).trim().isString().isLength({ max: 500 }),
-		body('profile.organization').optional({ checkFalsy: true }).trim().isString(),
-		body('profile.avatar').optional({ checkFalsy: true }).trim().isURL().withMessage('Avatar must be a valid URL.'),
-	],
-	controller.updateMyProfile
-);
 router.get('/organizer', requireAuth, requireRoles('organizer'), controller.organizerStats);
 router.get('/organizer/analytics', requireAuth, requireRoles('organizer'), controller.getOrganizerAnalytics);
 router.post('/organizer/create-event', requireAuth, requireRoles('organizer'), eventValidationRules, controller.createEventForOrganizerDashboard);
