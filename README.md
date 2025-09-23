@@ -120,12 +120,12 @@ curl http://localhost:5000/api/auth/me -H "Authorization: Bearer <JWT>"
 ### Auth `/api/auth`
 - `POST /register` Register (attendee by default)
 - `POST /login` Login and receive JWT
-- `GET /me` Current user profile
 
 ### Users `/api/users`
 - `GET /` Admin only: list all users
 - `PATCH /:id/status` Admin only: suspend/activate
 - `PATCH /me` Update own profile
+- `GET /me` Get own profile
 
 ### Events `/api/events`
 - `POST /` Organizer/Admin: create

@@ -101,57 +101,6 @@ exports.adminStats = async (req, res, next) => {
 	}
 };
 
-exports.getMyProfile = async (req, res, next) => {
-	try {
-		// The user ID is from the JWT payload, which is trustworthy.
-		const user = await User.findById(req.user.id).select('-password').lean();
-
-		if (!user) {
-			return res.status(404).json({ success: false, message: 'User not found.' });
-		}
-
-		return res.json({ success: true, data: user });
-	} catch (err) {
-		return next(err);
-	}
-};
-
-exports.updateMyProfile = async (req, res, next) => {
-	try {
-		const errors = validationResult(req);
-		if (!errors.isEmpty()) {
-			return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
-		}
-
-		const { name, profile } = req.body;
-
-		const user = await User.findById(req.user.id);
-		if (!user) {
-			return res.status(404).json({ success: false, message: 'User not found' });
-		}
-
-		if (name) {
-			user.name = name;
-		}
-
-		if (profile && typeof profile === 'object') {
-			if (!user.profile) user.profile = {};
-			Object.assign(user.profile, profile);
-		}
-
-		const updatedUser = await user.save();
-		const userObject = updatedUser.toObject();
-		delete userObject.password;
-
-		return res.json({ success: true, message: 'Profile updated successfully', data: userObject });
-	} catch (err) {
-		if (err.name === 'ValidationError') {
-			return res.status(400).json({ success: false, message: err.message, errors: err.errors });
-		}
-		return next(err);
-	}
-};
-
 exports.getActivityLogs = async (req, res, next) => {
 	try {
 		const { page = 1, limit = 20, search, sortBy = 'timestamp', sortOrder = 'desc', type, dateFrom, dateTo } = req.query;

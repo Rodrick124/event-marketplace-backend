@@ -72,31 +72,6 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     }
     ```
 
-### `GET /api/auth/me`
-
-*   **Description:** Retrieves the currently authenticated user's profile.
-*   **Authentication:** Required (JWT in Authorization header)
-*   **Request Headers:**
-    ```
-    Authorization: Bearer <JWT_TOKEN>
-    ```
-*   **Response (Success 200):**
-    ```json
-    {
-        "_id": "string",
-        "name": "string",
-        "email": "string",
-        "role": "string",
-        "status": "active"
-    }
-    ```
-*   **Response (Error 401):**
-    ```json
-    {
-        "message": "Unauthorized"
-    }
-    ```
-
 ### `POST /api/auth/logout`
 
 *   **Description:** Logs out the current user (invalidates the token on the server side, if applicable, or simply provides a success message for client-side token removal).
@@ -1697,6 +1672,41 @@ All endpoints in this section require authentication as an `attendee`.
     }
     ```
 
+### `GET /api/users/me`
+
+*   **Description:** Retrieves the profile of the currently authenticated user.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Response (Success 200):**
+    ```json
+    {
+        "success": true,
+        "data": {
+            "_id": "string",
+            "name": "string",
+            "email": "string",
+            "role": "string",
+            "status": "active",
+            "profile": {
+                "bio": "string",
+                "phone": "string"
+            },
+            "createdAt": "string (ISO date)",
+            "updatedAt": "string (ISO date)"
+        }
+    }
+    ```
+*   **Response (Error 401/404):**
+    ```json
+    {
+        "success": false,
+        "message": "User not found."
+    }
+    ```
+
 ### `PATCH /api/users/me`
 
 *   **Description:** Updates the profile of the currently authenticated user.
@@ -1719,18 +1729,22 @@ All endpoints in this section require authentication as an `attendee`.
 *   **Response (Success 200):**
     ```json
     {
+        "success": true,
         "message": "Profile updated successfully",
-        "user": {
+        "data": {
             "_id": "string",
             "name": "string",
             "email": "string",
-            "profile": {}
+            "profile": {},
+            "role": "string",
+            "status": "string"
         }
     }
     ```
 *   **Response (Error 400/401/500):**
     ```json
     {
-        "message": "Error message"
+        "success": false,
+        "message": "Email already in use."
     }
     ```
