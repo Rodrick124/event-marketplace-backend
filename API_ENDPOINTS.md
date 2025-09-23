@@ -93,6 +93,67 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     }
     ```
 
+### `POST /api/auth/forgot-password`
+
+*   **Description:** Initiates the password reset process for a user. It sends an email with a reset link if the user exists.
+*   **Authentication:** None
+*   **Request Body:**
+    ```json
+    {
+        "email": "string (email format)"
+    }
+    ```
+*   **Response (Success 200):**
+    ```json
+    {
+        "success": true,
+        "message": "If an account with that email exists, a password reset link has been sent."
+    }
+    ```
+*   **Response (Error 400 - Validation):**
+    ```json
+    {
+        "success": false,
+        "message": "Validation failed",
+        "errors": [ { "msg": "Please provide a valid email", "path": "email", ... } ]
+    }
+    ```
+
+### `POST /api/auth/reset-password/:token`
+
+*   **Description:** Resets the user's password using a valid token from the reset email.
+*   **Authentication:** None
+*   **Path Parameters:**
+    *   `token`: `string` (The password reset token from the email link)
+*   **Request Body:**
+    ```json
+    {
+        "newPassword": "string (min 6 characters)"
+    }
+    ```
+*   **Response (Success 200):**
+    ```json
+    {
+        "success": true,
+        "message": "Password reset successfully."
+    }
+    ```
+*   **Response (Error 400 - Validation):**
+    ```json
+    {
+        "success": false,
+        "message": "Validation failed",
+        "errors": [ { "msg": "New password must be at least 6 characters long", "path": "newPassword", ... } ]
+    }
+    ```
+*   **Response (Error 400 - Invalid Token):**
+    ```json
+    {
+        "success": false,
+        "message": "Invalid or expired token."
+    }
+    ```
+
 ---
 
 ## Dashboard Endpoints (`/api/dashboard`)

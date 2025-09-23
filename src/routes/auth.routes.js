@@ -18,6 +18,14 @@ router.get('/me', requireAuth, controller.me);
 
 router.post('/logout', requireAuth, controller.logout);
 
+router.post('/forgot-password', [body('email', 'Please provide a valid email').isEmail()], controller.forgotPassword);
+
+router.post(
+	'/reset-password/:token',
+	[
+		body('newPassword', 'New password must be at least 6 characters long').isLength({ min: 6 }),
+	],
+	controller.resetPassword
+);
+
 module.exports = router;
-
-

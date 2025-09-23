@@ -1,5 +1,6 @@
 const { validationResult } = require('express-validator');
 const User = require('../models/User');
+const { sendPasswordChangeNotification } = require('../services/email.service');
 
 exports.listUsers = async (req, res, next) => {
 	try {
@@ -95,6 +96,17 @@ exports.changeMyPassword = async (req, res, next) => {
 
 		user.password = newPassword;
 		await user.save(); // The pre-save hook in the User model will hash the password
+
+		// Send notification email (fire and forget)
+		try {
+			await sendPasswordChangeNotification({
+				to: user.email,
+				name: user.name,
+			});
+		} catch (emailError) {
+			// Log the error but don't fail the request
+			console.error(`Failed to send password change notification to ${user.email}:`, emailError);
+		}
 
 		return res.json({ success: true, message: 'Password changed successfully.' });
 	} catch (err) {

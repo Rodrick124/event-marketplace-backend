@@ -16,8 +16,6 @@ async function sendMail({ to, subject, html }) {
 	await transporter.sendMail({ from, to, subject, html });
 }
 
-module.exports = { sendMail };
-
 async function sendRegistrationEmail({ to, name }) {
 	const html = `<p>Hi ${name},</p><p>Welcome to Event Marketplace! Your account has been created successfully.</p>`;
 	await sendMail({ to, subject: 'Welcome to Event Marketplace', html });
@@ -39,8 +37,23 @@ async function sendBookingConfirmation({ to, name, eventTitle, quantity, reserva
 	await sendMail({ to, subject: 'Your booking is confirmed', html });
 }
 
-module.exports.sendRegistrationEmail = sendRegistrationEmail;
-module.exports.sendBookingConfirmation = sendBookingConfirmation;
-module.exports.generateTicketQrDataUrl = generateTicketQrDataUrl;
+async function sendPasswordChangeNotification({ to, name }) {
+	const subject = 'Your Password Has Been Changed';
+	const html = `<p>Hi ${name},</p><p>This is a confirmation that the password for your account <strong>${to}</strong> has just been changed.</p><p>If you did not make this change, please contact our support team immediately.</p><p>Thanks,<br>The Event Marketplace Team</p>`;
+	await sendMail({ to, subject, html });
+}
 
+async function sendPasswordResetEmail({ to, name, resetUrl }) {
+	const subject = 'Password Reset Request';
+	const html = `<p>Hi ${name},</p><p>You requested a password reset. Please click the link below to create a new password:</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>This link is valid for 10 minutes.</p><p>If you did not request this, please ignore this email.</p>`;
+	await sendMail({ to, subject, html });
+}
 
+module.exports = {
+	sendMail,
+	sendRegistrationEmail,
+	generateTicketQrDataUrl,
+	sendBookingConfirmation,
+	sendPasswordChangeNotification,
+	sendPasswordResetEmail,
+};

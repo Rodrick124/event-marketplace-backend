@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
+const crypto = require('crypto');
 const User = require('../models/User');
 
 function signToken(user) {
@@ -9,7 +10,7 @@ function signToken(user) {
 	return jwt.sign(payload, secret, { expiresIn });
 }
 
-const { sendRegistrationEmail } = require('../services/email.service');
+const { sendRegistrationEmail, sendPasswordResetEmail } = require('../services/email.service');
 
 exports.register = async (req, res, next) => {
 	try {
@@ -60,4 +61,74 @@ exports.logout = async (req, res) => {
 	return res.json({ message: 'Logged out' });
 };
 
+exports.forgotPassword = async (req, res, next) => {
+	try {
+		const errors = validationResult(req);
+		if (!errors.isEmpty()) {
+			return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
+		}
 
+		const { email } = req.body;
+		const user = await User.findOne({ email });
+
+		// To prevent email enumeration, always return a generic success message.
+		if (!user) {
+			return res.json({ success: true, message: 'If an account with that email exists, a password reset link has been sent.' });
+		}
+
+		// Generate and hash password reset token. This method needs to be added to the User model.
+		const resetToken = user.getResetPasswordToken();
+		await user.save({ validateBeforeSave: false }); // Skip validation to save only the reset token fields
+
+		// Create reset URL. This should point to your frontend application.
+		const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password/${resetToken}`;
+
+		try {
+			await sendPasswordResetEmail({
+				to: user.email,
+				name: user.name,
+				resetUrl,
+			});
+			return res.json({ success: true, message: 'If an account with that email exists, a password reset link has been sent.' });
+		} catch (err) {
+			console.error('Email sending error:', err);
+			user.passwordResetToken = undefined;
+			user.passwordResetExpires = undefined;
+			await user.save({ validateBeforeSave: false });
+			return next(new Error('Email could not be sent. Please try again later.'));
+		}
+	} catch (err) {
+		return next(err);
+	}
+};
+
+exports.resetPassword = async (req, res, next) => {
+	try {
+		const errors = validationResult(req);
+		if (!errors.isEmpty()) {
+			return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
+		}
+
+		// Get hashed token from the URL params
+		const passwordResetToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+
+		const user = await User.findOne({
+			passwordResetToken,
+			passwordResetExpires: { $gt: Date.now() },
+		});
+
+		if (!user) {
+			return res.status(400).json({ success: false, message: 'Invalid or expired token.' });
+		}
+
+		// Set new password and clear reset fields
+		user.password = req.body.newPassword;
+		user.passwordResetToken = undefined;
+		user.passwordResetExpires = undefined;
+		await user.save(); // The pre-save hook in the User model will hash the password
+
+		return res.json({ success: true, message: 'Password reset successfully.' });
+	} catch (err) {
+		return next(err);
+	}
+};
