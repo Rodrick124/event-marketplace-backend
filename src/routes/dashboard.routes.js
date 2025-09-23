@@ -16,6 +16,7 @@ router.patch('/organizer/events/:id/cancel', requireAuth, requireRoles('organize
 router.delete('/organizer/events/:id', requireAuth, requireRoles('organizer'), eventController.deleteEvent);
 router.get('/organizer/reservations', requireAuth, requireRoles('organizer'), controller.getReservationsForOrganizerDashboard);
 router.get('/attendee', requireAuth, requireRoles('attendee'), controller.attendeeStats);
+router.get('/attendee/events', requireAuth, requireRoles('attendee'), controller.getAttendeeReservedEvents);
 router.get('/admin/users', requireAuth, requireRoles('admin'), controller.getUsersForAdminDashboard);
 router.get('/admin/events', requireAuth, requireRoles('admin'), controller.getEventsForAdminDashboard);
 router.patch('/admin/events/:id/status', requireAuth, requireRoles('admin'), body('status').isIn(['pending', 'approved', 'rejected']), eventController.updateEventStatus);
