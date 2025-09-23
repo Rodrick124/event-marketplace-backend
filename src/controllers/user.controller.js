@@ -33,15 +33,27 @@ exports.updateMyProfile = async (req, res, next) => {
 
 		const user = await User.findById(req.user.id);
 		if (!user) {
-			return res.status(404).json({ message: 'User not found' });
+			return res.status(404).json({ success: false, message: 'User not found' });
 		}
 
-		if (name) user.name = name;
-		if (email) user.email = email;
+		if (name) {
+			user.name = name;
+		}
+		// Only update email if it's different and provided
+		if (email && email !== user.email) {
+			user.email = email;
+			// For production apps, consider adding an email verification flow here.
+		}
 
+		// Safely update profile sub-document by whitelisting fields
 		if (profile && typeof profile === 'object') {
 			if (!user.profile) user.profile = {};
-			Object.assign(user.profile, profile);
+			const allowedProfileFields = ['bio', 'phone', 'organization'];
+			allowedProfileFields.forEach((field) => {
+				if (profile[field] !== undefined) {
+					user.profile[field] = profile[field];
+				}
+			});
 		}
 
 		const updatedUser = await user.save();
@@ -56,6 +68,36 @@ exports.updateMyProfile = async (req, res, next) => {
 		if (err.code === 11000) {
 			return res.status(409).json({ success: false, message: 'Email already in use.' });
 		}
+		return next(err);
+	}
+};
+
+exports.changeMyPassword = async (req, res, next) => {
+	try {
+		const errors = validationResult(req);
+		if (!errors.isEmpty()) {
+			return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
+		}
+
+		const { currentPassword, newPassword } = req.body;
+
+		// Fetch user with password field to compare
+		const user = await User.findById(req.user.id);
+		if (!user) {
+			return res.status(404).json({ success: false, message: 'User not found' });
+		}
+
+		// Verify current password
+		const isMatch = await user.comparePassword(currentPassword);
+		if (!isMatch) {
+			return res.status(401).json({ success: false, message: 'Incorrect current password.' });
+		}
+
+		user.password = newPassword;
+		await user.save(); // The pre-save hook in the User model will hash the password
+
+		return res.json({ success: true, message: 'Password changed successfully.' });
+	} catch (err) {
 		return next(err);
 	}
 };

@@ -1719,11 +1719,12 @@ All endpoints in this section require authentication as an `attendee`.
     ```json
     {
         "profile": {
-            "bio": "string",
-            "phone": "string"
+            "bio": "string (optional)",
+            "phone": "string (optional)",
+            "organization": "string (optional)"
         },
-        "name": "string",
-        "email": "string (email format)"
+        "name": "string (optional)",
+        "email": "string (optional, email format)"
     }
     ```
 *   **Response (Success 200):**
@@ -1746,5 +1747,43 @@ All endpoints in this section require authentication as an `attendee`.
     {
         "success": false,
         "message": "Email already in use."
+    }
+    ```
+
+### `PATCH /api/users/me/password`
+
+*   **Description:** Changes the password for the currently authenticated user.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Request Body:**
+    ```json
+    {
+        "currentPassword": "string",
+        "newPassword": "string (min 6 characters)"
+    }
+    ```
+*   **Response (Success 200):**
+    ```json
+    {
+        "success": true,
+        "message": "Password changed successfully."
+    }
+    ```
+*   **Response (Error 400 - Validation):**
+    ```json
+    {
+        "success": false,
+        "message": "Validation failed",
+        "errors": [ { "msg": "New password must be at least 6 characters long", "path": "newPassword", ... } ]
+    }
+    ```
+*   **Response (Error 401 - Incorrect Password):**
+    ```json
+    {
+        "success": false,
+        "message": "Incorrect current password."
     }
     ```

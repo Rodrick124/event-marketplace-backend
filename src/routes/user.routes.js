@@ -16,6 +16,14 @@ router.patch(
 	controller.updateMyProfile
 );
 
+router.patch(
+	'/me/password',
+	requireAuth,
+	[
+		body('currentPassword', 'Current password is required').notEmpty(),
+		body('newPassword', 'New password must be at least 6 characters long').isLength({ min: 6 }),
+	],
+	controller.changeMyPassword
+);
+
 module.exports = router;
-
-
