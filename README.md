@@ -144,7 +144,8 @@ curl http://localhost:5000/api/auth/me -H "Authorization: Bearer <JWT>"
 
 ### Payments `/api/payments`
 - `POST /checkout` Start payment: `{ reservationId, method: 'stripe'|'paypal'|'local' }`
-- `POST /verify` Verify or mark payment: `{ paymentId, status }`
+- `POST /:paymentId/confirm` Server-side confirmation of payment.
+- `PATCH /:paymentId/status` Admin/Organizer: Manually update payment status.
 - `GET /me` My payment history
 
 ### Dashboards `/api/dashboard`

@@ -1273,7 +1273,7 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
 
 ### `POST /api/payments/checkout`
 
-*   **Description:** Initiates a payment checkout process for a reservation.
+*   **Description:** Initiates a payment checkout process for a reservation. Creates a `pending` payment record and returns the necessary information for the client to proceed with the payment provider.
 *   **Authentication:** Required (JWT in Authorization header)
 *   **Request Headers:**
     ```
@@ -1286,33 +1286,71 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
         "method": "string ('stripe', 'paypal', or 'local')"
     }
     ```
+*   **Response (Success 200 - Stripe):**
+    ```json
+    {
+        "clientSecret": "string (Stripe Payment Intent client secret)",
+        "paymentId": "string (Your internal Payment ID)"
+    }
+    ```
+*   **Response (Success 200 - PayPal):**
+    ```json
+    {
+        "orderId": "string (PayPal Order ID)",
+        "paymentId": "string (Your internal Payment ID)"
+    }
+    ```
+*   **Response (Success 200 - Local):**
+    ```json
+    {
+        "paymentId": "string (Your internal Payment ID)"
+    }
+    ```
+*   **Response (Error 400/404/500):**
+    ```json
+    {
+        "message": "Reservation not found or invalid status"
+    }
+    ```
+
+### `POST /api/payments/:paymentId/confirm`
+
+*   **Description:** Confirms a payment after it has been processed on the client-side (e.g., after Stripe.js confirmation or PayPal approval). This endpoint performs server-side verification with the payment provider.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Path Parameters:**
+    *   `paymentId`: `string` (The internal Payment ID from the checkout step)
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Request Body:** (Empty)
 *   **Response (Success 200):**
     ```json
     {
-        "message": "Payment initiated",
-        "payment": {
+        "success": true,
+        "message": "Payment status updated to completed",
+        "data": {
             "_id": "string",
-            "reservationId": "string",
-            "amount": "number",
-            "currency": "string",
-            "method": "string",
-            "status": "pending",
-            "createdAt": "string (ISO date)"
-        },
-        "redirectUrl": "string (optional, for external payment gateways)"
+            "status": "completed"
+        }
     }
     ```
-*   **Response (Error 400/401/500):**
+*   **Response (Error 400/404/500):**
     ```json
     {
-        "message": "Error message"
+        "success": false,
+        "message": "Failed to capture PayPal payment. It may have already been processed or expired."
     }
     ```
 
-### `POST /api/payments/verify`
 
-*   **Description:** Verifies the status of a payment.
+### `PATCH /api/payments/:paymentId/status`
+
+*   **Description:** Manually updates the status of a payment. Intended for administrators to confirm offline ('local') payments or resolve issues.
 *   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `admin`, `organizer`
+*   **Path Parameters:**
+    *   `paymentId`: `string` (The internal Payment ID)
 *   **Request Headers:**
     ```
     Authorization: Bearer <JWT_TOKEN>
@@ -1320,26 +1358,23 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
 *   **Request Body:**
     ```json
     {
-        "paymentId": "string",
-        "status": "string (optional, 'pending', 'completed', or 'failed')"
+        "status": "string ('completed', 'failed', 'pending')"
     }
     ```
 *   **Response (Success 200):**
     ```json
     {
-        "message": "Payment status updated",
-        "payment": {
-            "_id": "string",
-            "status": "string"
-        }
+        "_id": "string",
+        "status": "completed"
     }
     ```
-*   **Response (Error 400/401/404/500):**
+*   **Response (Error 401/403/404):**
     ```json
     {
-        "message": "Error message"
+        "message": "Payment not found"
     }
     ```
+
 
 ### `GET /api/payments/me`
 

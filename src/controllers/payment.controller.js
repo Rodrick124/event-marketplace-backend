@@ -29,44 +29,101 @@ exports.checkout = async (req, res, next) => {
 				currency: 'usd',
 				metadata: { reservationId: reservation._id.toString() },
 			});
-			payment = await Payment.create({ userId: req.user.id, eventId: reservation.eventId, amount: reservation.totalPrice, method: 'stripe', transactionId: intent.id, status: 'pending' });
+			payment = await Payment.create({ reservationId, userId: req.user.id, eventId: reservation.eventId, amount: reservation.totalPrice, method: 'stripe', transactionId: intent.id, status: 'pending' });
 			return res.json({ clientSecret: intent.client_secret, paymentId: payment._id });
 		}
 
 		if (method === 'paypal') {
 			const client = buildPayPalClient();
 			if (!client) return res.status(500).json({ message: 'PayPal not configured' });
-			const order = {
+			const request = new paypal.orders.OrdersCreateRequest();
+			request.prefer('return=representation');
+			request.requestBody({
 				intent: 'CAPTURE',
 				purchase_units: [{ amount: { currency_code: 'USD', value: reservation.totalPrice.toFixed(2) } }],
-			};
-			const request = new paypal.orders.OrdersCreateRequest();
-			request.requestBody(order);
+			});
 			const response = await client.execute(request);
-			payment = await Payment.create({ userId: req.user.id, eventId: reservation.eventId, amount: reservation.totalPrice, method: 'paypal', transactionId: response.result.id, status: 'pending' });
+			payment = await Payment.create({ reservationId, userId: req.user.id, eventId: reservation.eventId, amount: reservation.totalPrice, method: 'paypal', transactionId: response.result.id, status: 'pending' });
 			return res.json({ orderId: response.result.id, paymentId: payment._id });
 		}
 
 		// local method (cash or offline)
-		payment = await Payment.create({ userId: req.user.id, eventId: reservation.eventId, amount: reservation.totalPrice, method: 'local', status: 'pending' });
+		payment = await Payment.create({ reservationId, userId: req.user.id, eventId: reservation.eventId, amount: reservation.totalPrice, method: 'local', status: 'pending' });
 		return res.json({ paymentId: payment._id });
 	} catch (err) {
 		return next(err);
 	}
 };
 
-exports.verify = async (req, res, next) => {
+exports.confirmPayment = async (req, res, next) => {
 	try {
-		const errors = validationResult(req);
-		if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-		const { paymentId, status, transactionId } = req.body;
+		const { paymentId } = req.params;
 		const payment = await Payment.findById(paymentId);
+
 		if (!payment || payment.userId.toString() !== req.user.id) return res.status(404).json({ message: 'Payment not found' });
-		payment.status = status || 'completed';
-		if (transactionId) payment.transactionId = transactionId;
+		if (payment.status === 'completed') return res.json({ success: true, message: 'Payment was already completed.', data: payment });
+		if (payment.method === 'local') return res.status(400).json({ success: false, message: 'Local payments must be confirmed by an administrator.' });
+
+		let isSuccess = false;
+
+		if (payment.method === 'stripe') {
+			if (!stripe) return res.status(500).json({ message: 'Stripe not configured' });
+			const intent = await stripe.paymentIntents.retrieve(payment.transactionId);
+			if (intent.status === 'succeeded') {
+				payment.status = 'completed';
+				isSuccess = true;
+			} else {
+				payment.status = 'failed';
+			}
+		}
+
+		if (payment.method === 'paypal') {
+			const client = buildPayPalClient();
+			if (!client) return res.status(500).json({ message: 'PayPal not configured' });
+			const request = new paypal.orders.OrdersCaptureRequest(payment.transactionId);
+			request.requestBody({});
+			try {
+				const capture = await client.execute(request);
+				if (capture.result.status === 'COMPLETED') {
+					payment.status = 'completed';
+					isSuccess = true;
+				} else {
+					payment.status = 'failed';
+				}
+			} catch (paypalError) {
+				console.error('PayPal capture error:', paypalError);
+				return res.status(400).json({ success: false, message: 'Failed to capture PayPal payment. It may have already been processed or expired.' });
+			}
+		}
+
 		await payment.save();
 
-		await Reservation.updateMany({ userId: req.user.id, eventId: payment.eventId, status: 'reserved', paymentId: { $exists: false } }, { $set: { paymentId: payment._id } });
+		if (isSuccess) {
+			await Reservation.findByIdAndUpdate(payment.reservationId, { status: 'completed' });
+			// TODO: Send booking confirmation email with QR code
+		}
+
+		return res.json({ success: true, message: `Payment status updated to ${payment.status}`, data: payment });
+	} catch (err) {
+		return next(err);
+	}
+};
+
+exports.updatePaymentStatusByAdmin = async (req, res, next) => {
+	try {
+		const { paymentId } = req.params;
+		const { status } = req.body;
+
+		const payment = await Payment.findById(paymentId);
+		if (!payment) return res.status(404).json({ message: 'Payment not found' });
+
+		payment.status = status;
+		await payment.save();
+
+		if (status === 'completed') {
+			await Reservation.findByIdAndUpdate(payment.reservationId, { status: 'completed' });
+		}
+
 		return res.json(payment);
 	} catch (err) {
 		return next(err);
@@ -81,5 +138,3 @@ exports.getMyPayments = async (req, res, next) => {
 		return next(err);
 	}
 };
-
-
