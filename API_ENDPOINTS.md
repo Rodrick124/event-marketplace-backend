@@ -972,54 +972,6 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     }
     ```
 
-### `GET /api/dashboard/attendee/events`
-
-*   **Description:** Retrieves a list of all reservations made by the authenticated attendee, including active and cancelled ones, with full event details included.
-*   **Authentication:** Required (JWT in Authorization header)
-*   **Roles:** `attendee`
-*   **Request Headers:**
-    ```
-    Authorization: Bearer <JWT_TOKEN>
-    ```
-*   **Response (Success 200):**
-    ```json
-    {
-        "success": true,
-        "data": [
-            {
-                "_id": "reservationId1",
-                "userId": "attendeeUserId",
-                "ticketQuantity": 2,
-                "totalPrice": 50,
-                "status": "reserved",
-                "createdAt": "2024-07-20T10:00:00Z",
-                "eventId": {
-                    "_id": "eventId1",
-                    "title": "Community Tech Meetup",
-                    "description": "Join us for a friendly meetup...",
-                    "category": "Tech",
-                    "location": {
-                        "address": "123 Main St",
-                        "city": "Techville",
-                        "country": "USA"
-                    },
-                    "date": "2024-08-15T18:30:00Z",
-                    "time": "18:30",
-                    "price": 25.0,
-                    "imageUrl": "https://via.placeholder.com/1024x768.png/008877?text=Tech+Meetup",
-                    "status": "approved"
-                }
-            }
-        ]
-    }
-    ```
-*   **Response (Error 401/403):**
-    ```json
-    {
-        "message": "Unauthorized or Forbidden"
-    }
-    ```
-
 ---
 
 ## Event Endpoints (`/api/events`)

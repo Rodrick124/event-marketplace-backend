@@ -245,27 +245,6 @@ exports.attendeeStats = async (req, res, next) => {
 	}
 };
 
-exports.getAttendeeReservedEvents = async (req, res, next) => {
-	try {
-		const reservations = await Reservation.find({ userId: req.user.id })
-			.populate({
-				path: 'eventId',
-				select: 'title description category location date time price imageUrl status',
-			})
-			.sort({ 'eventId.date': 1 });
-
-		// Filter out reservations where the event might have been deleted
-		const validReservations = reservations.filter((r) => r.eventId);
-
-		return res.json({
-			success: true,
-			data: validReservations,
-		});
-	} catch (err) {
-		return next(err);
-	}
-};
-
 exports.getUsersForAdminDashboard = async (req, res, next) => {
 	try {
 		const { page = 1, limit = 10, search, status, sortBy = 'registrationDate', sortOrder = 'desc' } = req.query;
