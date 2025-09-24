@@ -7,9 +7,19 @@ const Reservation = require('../models/Reservation');
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
 function buildPayPalClient() {
-	if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) return null;
-	const env = new paypal.core.SandboxEnvironment(process.env.PAYPAL_CLIENT_ID, process.env.PAYPAL_CLIENT_SECRET);
-	return new paypal.core.PayPalHttpClient(env);
+	if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) {
+		console.error('PayPal credentials (PAYPAL_CLIENT_ID or PAYPAL_CLIENT_SECRET) are missing from your .env file.');
+		return null;
+	}
+
+	const isProduction = process.env.NODE_ENV === 'production';
+	const Environment = isProduction ? paypal.core.LiveEnvironment : paypal.core.SandboxEnvironment;
+
+	// Diagnostic logging
+	console.log(`[PayPal] Initializing client for ${isProduction ? 'production' : 'sandbox'} environment.`);
+	console.log(`[PayPal] Using Client ID: ${process.env.PAYPAL_CLIENT_ID.substring(0, 8)}...`);
+
+	return new paypal.core.PayPalHttpClient(new Environment(process.env.PAYPAL_CLIENT_ID, process.env.PAYPAL_CLIENT_SECRET));
 }
 
 exports.checkout = async (req, res, next) => {

@@ -196,8 +196,14 @@ exports.searchEvents = async (req, res, next) => {
 			{ title: { $regex: query, $options: 'i' } },
 			{ description: { $regex: query, $options: 'i' } },
 		];
-		if (category) filter.category = category;
-		if (date) filter.date = { $gte: new Date(date) };
+		if (category) {
+			filter.category = category;
+		}
+
+		// Ensure only future events are returned by default, or from the specified date if it's in the future.
+		const minDate = date ? new Date(date) : new Date();
+		filter.date = { $gte: minDate };
+
 		if (location) filter['location.city'] = { $regex: location, $options: 'i' };
 		const events = await Event.find(filter).sort({ date: 1 }).limit(100);
 		return res.json(events);

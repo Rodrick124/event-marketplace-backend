@@ -667,6 +667,11 @@ exports.getEventsForOrganizerDashboard = async (req, res, next) => {
 			initialMatch.status = approvalStatus;
 		}
 
+		// By default, only show future events unless a specific status is requested
+		if (!status) {
+			initialMatch.date = { $gte: new Date() };
+		}
+
 		// Build post-derivation match stage
 		const postMatch = {};
 		if (status) {
