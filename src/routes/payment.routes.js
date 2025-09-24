@@ -17,4 +17,6 @@ router.patch(
 
 router.get('/me', requireAuth, controller.getMyPayments);
 
+router.get('/:id', requireAuth, controller.getPaymentById);
+
 module.exports = router;

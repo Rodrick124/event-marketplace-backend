@@ -172,3 +172,26 @@ exports.getMyPayments = async (req, res, next) => {
 		return next(err);
 	}
 };
+
+exports.getPaymentById = async (req, res, next) => {
+	try {
+		const payment = await Payment.findById(req.params.id).populate('eventId', 'organizerId');
+
+		if (!payment) {
+			return res.status(404).json({ message: 'Payment not found' });
+		}
+
+		const isOwner = payment.userId.toString() === req.user.id;
+		const isAdmin = req.user.role === 'admin';
+		const isEventOrganizer = req.user.role === 'organizer' && payment.eventId?.organizerId.toString() === req.user.id;
+
+		if (!isOwner && !isAdmin && !isEventOrganizer) {
+			// Return 404 instead of 403 to avoid leaking information about the existence of a payment.
+			return res.status(404).json({ message: 'Payment not found' });
+		}
+
+		return res.json(payment);
+	} catch (err) {
+		return next(err);
+	}
+};

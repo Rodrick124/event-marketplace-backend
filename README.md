@@ -147,6 +147,7 @@ curl http://localhost:5000/api/auth/me -H "Authorization: Bearer <JWT>"
 - `POST /:paymentId/confirm` Server-side confirmation of payment.
 - `PATCH /:paymentId/status` Admin/Organizer: Manually update payment status.
 - `GET /me` My payment history
+- `GET /:id` Get a single payment by ID
 
 ### Dashboards `/api/dashboard`
 - `GET /admin` Admin stats
