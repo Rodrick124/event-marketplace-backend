@@ -21,23 +21,32 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
-const limiter = rateLimit({
+// General rate limiter for most requests
+const globalLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000,
 	max: 300,
+	standardHeaders: true,
+	legacyHeaders: false,
 });
-app.use(limiter);
+
+// Stricter rate limiter for authentication routes
+const authLimiter = rateLimit({
+	windowMs: 15 * 60 * 1000, // 15 minutes
+	max: 20, // Limit each IP to 20 login/register/reset requests per window
+	message: 'Too many requests from this IP, please try again after 15 minutes',
+});
 
 app.get('/api/health', (req, res) => {
 	return res.json({ status: 'ok', uptime: process.uptime() });
 });
 
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/events', eventRoutes);
-app.use('/api/reservations', reservationRoutes);
-app.use('/api/payments', paymentRoutes);
-app.use('/api/cart', cartRoutes);
-app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/users', globalLimiter, userRoutes);
+app.use('/api/events', globalLimiter, eventRoutes);
+app.use('/api/reservations', globalLimiter, reservationRoutes);
+app.use('/api/payments', globalLimiter, paymentRoutes);
+app.use('/api/cart', globalLimiter, cartRoutes);
+app.use('/api/dashboard', globalLimiter, dashboardRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

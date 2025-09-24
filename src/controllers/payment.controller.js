@@ -3,7 +3,10 @@ const paypal = require('@paypal/checkout-server-sdk');
 const { validationResult } = require('express-validator');
 const Payment = require('../models/Payment');
 const Reservation = require('../models/Reservation');
+const User = require('../models/User');
+const Event = require('../models/Event');
 
+const { sendBookingConfirmation } = require('../services/email.service');
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
 function buildPayPalClient() {
@@ -109,8 +112,29 @@ exports.confirmPayment = async (req, res, next) => {
 		await payment.save();
 
 		if (isSuccess) {
-			await Reservation.findByIdAndUpdate(payment.reservationId, { status: 'completed' });
-			// TODO: Send booking confirmation email with QR code
+			const reservation = await Reservation.findByIdAndUpdate(payment.reservationId, { status: 'completed' }, { new: true });
+
+			// Send booking confirmation email with QR code (fire and forget)
+			try {
+				const [user, event] = await Promise.all([
+					User.findById(payment.userId).select('name email').lean(),
+					Event.findById(payment.eventId).select('title').lean(),
+				]);
+
+				if (user && event && reservation) {
+					await sendBookingConfirmation({
+						to: user.email,
+						name: user.name,
+						eventTitle: event.title,
+						quantity: reservation.ticketQuantity,
+						reservationId: reservation._id.toString(),
+						eventId: event._id.toString(),
+						userId: user._id.toString(),
+					});
+				}
+			} catch (emailError) {
+				console.error(`Failed to send booking confirmation for payment ${payment._id}:`, emailError);
+			}
 		}
 
 		return res.json({ success: true, message: `Payment status updated to ${payment.status}`, data: payment });
