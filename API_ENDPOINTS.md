@@ -575,6 +575,87 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     }
     ```
 
+### `GET /api/dashboard/admin/contact-messages`
+
+*   **Description:** Get a paginated and filterable list of all contact form submissions.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `admin`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Query Parameters:**
+    *   `page` (number, optional, default: 1): Page number for pagination.
+    *   `limit` (number, optional, default: 10): Number of items per page.
+    *   `sortBy` (string, optional, default: `createdAt`): Field to sort by.
+    *   `sortOrder` (string, optional, default: `desc`): Sort order (`asc`, `desc`).
+    *   `status` (string, optional): Filter by status (`new`, `read`, `archived`).
+*   **Response (Success 200):**
+    ```json
+    {
+      "success": true,
+      "data": [
+        {
+          "_id": "message_id",
+          "name": "Curious Customer",
+          "email": "customer@example.com",
+          "subject": "Question about an event",
+          "message": "I have a question regarding...",
+          "status": "new",
+          "createdAt": "2024-01-01T00:00:00Z",
+          "updatedAt": "2024-01-01T00:00:00Z"
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "limit": 10,
+        "total": 50,
+        "pages": 5
+      }
+    }
+    ```
+*   **Response (Error 401/403):**
+    ```json
+    {
+        "message": "Unauthorized or Forbidden"
+    }
+    ```
+
+### `PATCH /api/dashboard/admin/contact-messages/:id`
+
+*   **Description:** Updates the status of a contact message (e.g., from 'new' to 'read').
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Roles:** `admin`
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Path Parameters:**
+    *   `id`: `string` (Contact Message ID)
+*   **Request Body:**
+    ```json
+    {
+        "status": "string ('new', 'read', 'archived')"
+    }
+    ```
+*   **Response (Success 200):**
+    ```json
+    {
+        "success": true,
+        "data": {
+            "_id": "message_id",
+            "status": "read"
+        }
+    }
+    ```
+*   **Response (Error 400/401/403/404):**
+    ```json
+    {
+        "success": false,
+        "message": "Message not found"
+    }
+    ```
+
 ### `GET /api/dashboard/organizer`
 
 *   **Description:** Retrieves statistics for the organizer dashboard.
@@ -1404,6 +1485,45 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     ```json
     {
         "message": "Error message"
+    }
+    ```
+
+---
+
+## Contact Endpoints (`/api/contact`)
+
+### `POST /api/contact`
+
+*   **Description:** Submits a message from the website's contact form. The message is saved to the database and an email notification is sent to the site administrator.
+*   **Authentication:** None
+*   **Request Body:**
+    ```json
+    {
+        "name": "string",
+        "email": "string (email format)",
+        "subject": "string",
+        "message": "string"
+    }
+    ```
+*   **Response (Success 201):**
+    ```json
+    {
+        "success": true,
+        "message": "Your message has been sent successfully. We will get back to you shortly."
+    }
+    ```
+*   **Response (Error 400 - Validation):**
+    ```json
+    {
+        "success": false,
+        "message": "Validation failed",
+        "errors": [ { "msg": "Name is required", "path": "name", ... } ]
+    }
+    ```
+*   **Response (Error 429 - Rate Limit):**
+    ```json
+    {
+        "message": "You have submitted too many messages. Please try again later."
     }
     ```
 

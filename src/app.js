@@ -9,6 +9,7 @@ const userRoutes = require('./routes/user.routes');
 const eventRoutes = require('./routes/event.routes');
 const reservationRoutes = require('./routes/reservation.routes');
 const paymentRoutes = require('./routes/payment.routes');
+const contactRoutes = require('./routes/contact.routes');
 const cartRoutes = require('./routes/cart.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const { notFoundHandler, errorHandler } = require('./middleware/error');
@@ -36,11 +37,21 @@ const authLimiter = rateLimit({
 	message: 'Too many requests from this IP, please try again after 15 minutes',
 });
 
+// Rate limiter for the contact form to prevent spam
+const contactLimiter = rateLimit({
+	windowMs: 60 * 60 * 1000, // 1 hour
+	max: 10, // Limit each IP to 10 submissions per hour
+	message: 'You have submitted too many messages. Please try again later.',
+	standardHeaders: true,
+	legacyHeaders: false,
+});
+
 app.get('/api/health', (req, res) => {
 	return res.json({ status: 'ok', uptime: process.uptime() });
 });
 
 app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/contact', contactLimiter, contactRoutes);
 app.use('/api/users', globalLimiter, userRoutes);
 app.use('/api/events', globalLimiter, eventRoutes);
 app.use('/api/reservations', globalLimiter, reservationRoutes);

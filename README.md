@@ -50,6 +50,7 @@ src/
     reservation.routes.js
     payment.routes.js
     dashboard.routes.js
+    contact.routes.js
   services/
     email.service.js         # SMTP + QR code utilities
 
@@ -76,6 +77,7 @@ Key variables:
 - `STRIPE_SECRET_KEY`
 - `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
+- `SMTP_ADMIN_EMAIL` (The email address to receive contact form submissions)
 
 ### Install & Run
 ```bash
@@ -149,6 +151,9 @@ curl http://localhost:5000/api/auth/me -H "Authorization: Bearer <JWT>"
 - `GET /me` My payment history
 - `GET /:id` Get a single payment by ID
 
+### Contact `/api/contact`
+- `POST /` Public: Submit a message from the contact form.
+
 ### Dashboards `/api/dashboard`
 - `GET /admin` Admin stats
 - `GET /organizer` Organizer stats
@@ -161,6 +166,8 @@ curl http://localhost:5000/api/auth/me -H "Authorization: Bearer <JWT>"
 - `GET /admin/analytics/revenue` Admin: time-series revenue data
 - `GET /admin/analytics/users` Admin: time-series user growth data
 - `GET /admin/activity-logs` Admin: list system activity logs
+- `GET /admin/contact-messages` Admin: list contact form submissions
+- `PATCH /admin/contact-messages/:id` Admin: update status of a contact message
 
 ## Reservation & Payment Flow
 1. Attendee creates a reservation: seats are decremented atomically when available.

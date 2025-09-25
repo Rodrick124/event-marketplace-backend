@@ -24,5 +24,7 @@ router.get('/admin/reservations', requireAuth, requireRoles('admin'), controller
 router.get('/admin/analytics/revenue', requireAuth, requireRoles('admin'), controller.getRevenueAnalytics);
 router.get('/admin/analytics/users', requireAuth, requireRoles('admin'), controller.getUserGrowthAnalytics);
 router.get('/admin/activity-logs', requireAuth, requireRoles('admin'), controller.getActivityLogs);
+router.get('/admin/contact-messages', requireAuth, requireRoles('admin'), controller.getContactMessages);
+router.patch('/admin/contact-messages/:id', requireAuth, requireRoles('admin'), body('status').isIn(['new', 'read', 'archived']), controller.updateContactMessageStatus);
 
 module.exports = router;

@@ -4,6 +4,7 @@ const Event = require('../models/Event');
 const Reservation = require('../models/Reservation');
 const Payment = require('../models/Payment');
 const mongoose = require('mongoose');
+const ContactMessage = require('../models/ContactMessage');
 const ActivityLog = require('../models/ActivityLog');
 
 exports.adminStats = async (req, res, next) => {
@@ -96,6 +97,66 @@ exports.adminStats = async (req, res, next) => {
 				recentActivity,
 			},
 		});
+	} catch (err) {
+		return next(err);
+	}
+};
+
+exports.getContactMessages = async (req, res, next) => {
+	try {
+		const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', status } = req.query;
+
+		const pageNum = parseInt(page, 10);
+		const limitNum = parseInt(limit, 10);
+		const skip = (pageNum - 1) * limitNum;
+
+		const matchStage = {};
+		if (status) {
+			matchStage.status = status;
+		}
+
+		const sortStage = {};
+		sortStage[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+		const [data, total] = await Promise.all([
+			ContactMessage.find(matchStage).sort(sortStage).skip(skip).limit(limitNum).lean(),
+			ContactMessage.countDocuments(matchStage),
+		]);
+
+		const pages = Math.ceil(total / limitNum);
+
+		return res.json({
+			success: true,
+			data,
+			pagination: {
+				page: pageNum,
+				limit: limitNum,
+				total,
+				pages,
+			},
+		});
+	} catch (err) {
+		return next(err);
+	}
+};
+
+exports.updateContactMessageStatus = async (req, res, next) => {
+	try {
+		const errors = validationResult(req);
+		if (!errors.isEmpty()) {
+			return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
+		}
+
+		const { id } = req.params;
+		const { status } = req.body;
+
+		const message = await ContactMessage.findByIdAndUpdate(id, { status }, { new: true });
+
+		if (!message) {
+			return res.status(404).json({ success: false, message: 'Message not found.' });
+		}
+
+		return res.json({ success: true, data: message });
 	} catch (err) {
 		return next(err);
 	}
