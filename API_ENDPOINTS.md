@@ -949,7 +949,7 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
 
 ### `PATCH /api/dashboard/organizer/events/:id`
 
-*   **Description:** Updates an event from the organizer dashboard. The organizer ID is automatically checked to ensure ownership.
+*   **Description:** Updates an event from the organizer dashboard. The organizer ID is automatically checked to ensure ownership. Any update automatically sets the event's status to `pending` to trigger an admin review.
 *   **Authentication:** Required (JWT in Authorization header)
 *   **Roles:** `organizer`
 *   **Request Headers:**
@@ -970,6 +970,7 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     ```json
     {
         "success": true,
+        "message": "Event updated and submitted for review.",
         "data": {
             "_id": "string",
             "organizerId": "string",
@@ -977,7 +978,7 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
             "description": "Now with more awesome.",
             "totalSeats": 150,
             "availableSeats": 130,
-            "status": "approved"
+            "status": "pending"
         }
     }
     ```
@@ -1040,6 +1041,53 @@ This document outlines the API endpoints for the Event Marketplace Backend, incl
     {
         "success": false,
         "message": "Cannot delete an event that has reservations. Please use the cancel action instead."
+    }
+    ```
+
+### `PATCH /api/dashboard/profile`
+
+*   **Description:** Updates the profile of the currently authenticated user. This is an alias for `PATCH /api/users/me` for dashboard usage.
+*   **Authentication:** Required (JWT in Authorization header)
+*   **Request Headers:**
+    ```
+    Authorization: Bearer <JWT_TOKEN>
+    ```
+*   **Request Body:** (Partial update, any of the fields below)
+    ```json
+    {
+        "profile": {
+            "bio": "A new bio about myself.",
+            "phone": "123-456-7890",
+            "organization": "My Company Inc."
+        },
+        "name": "My New Name",
+        "email": "new.email@example.com"
+    }
+    ```
+*   **Response (Success 200):**
+    ```json
+    {
+        "success": true,
+        "message": "Profile updated successfully",
+        "data": {
+            "_id": "string",
+            "name": "My New Name",
+            "email": "new.email@example.com",
+            "profile": {
+                "bio": "A new bio about myself.",
+                "phone": "123-456-7890",
+                "organization": "My Company Inc."
+            },
+            "role": "string",
+            "status": "string"
+        }
+    }
+    ```
+*   **Response (Error 400/401/409):**
+    ```json
+    {
+        "success": false,
+        "message": "Validation failed or Email already in use."
     }
     ```
 

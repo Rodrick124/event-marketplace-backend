@@ -8,6 +8,44 @@ const Event = require('../models/Event');
 
 const { sendBookingConfirmation } = require('../services/email.service');
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
+const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+/**
+ * Fulfills an order by updating payment and reservation statuses and sending a confirmation email.
+ * This function is designed to be reusable for both webhook and manual confirmation flows.
+ * @param {string} paymentId - The internal ID of the payment to fulfill.
+ */
+async function fulfillOrder(paymentId) {
+	const payment = await Payment.findById(paymentId);
+	if (!payment || payment.status === 'completed') {
+		console.log(`Fulfillment skipped: Payment ${paymentId} not found or already completed.`);
+		return;
+	}
+
+	payment.status = 'completed';
+	await payment.save();
+
+	const reservation = await Reservation.findByIdAndUpdate(payment.reservationId, { status: 'completed' }, { new: true });
+
+	// Send booking confirmation email with QR code (fire and forget)
+	try {
+		const [user, event] = await Promise.all([User.findById(payment.userId).select('name email').lean(), Event.findById(payment.eventId).select('title').lean()]);
+
+		if (user && event && reservation) {
+			await sendBookingConfirmation({
+				to: user.email,
+				name: user.name,
+				eventTitle: event.title,
+				quantity: reservation.ticketQuantity,
+				reservationId: reservation._id.toString(),
+				eventId: event._id.toString(),
+				userId: user._id.toString(),
+			});
+		}
+	} catch (emailError) {
+		console.error(`Failed to send booking confirmation for payment ${payment._id}:`, emailError);
+	}
+}
 
 function buildPayPalClient() {
 	if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) {
@@ -112,35 +150,53 @@ exports.confirmPayment = async (req, res, next) => {
 		await payment.save();
 
 		if (isSuccess) {
-			const reservation = await Reservation.findByIdAndUpdate(payment.reservationId, { status: 'completed' }, { new: true });
-
-			// Send booking confirmation email with QR code (fire and forget)
-			try {
-				const [user, event] = await Promise.all([
-					User.findById(payment.userId).select('name email').lean(),
-					Event.findById(payment.eventId).select('title').lean(),
-				]);
-
-				if (user && event && reservation) {
-					await sendBookingConfirmation({
-						to: user.email,
-						name: user.name,
-						eventTitle: event.title,
-						quantity: reservation.ticketQuantity,
-						reservationId: reservation._id.toString(),
-						eventId: event._id.toString(),
-						userId: user._id.toString(),
-					});
-				}
-			} catch (emailError) {
-				console.error(`Failed to send booking confirmation for payment ${payment._id}:`, emailError);
-			}
+			await fulfillOrder(payment._id);
 		}
 
 		return res.json({ success: true, message: `Payment status updated to ${payment.status}`, data: payment });
 	} catch (err) {
 		return next(err);
 	}
+};
+
+exports.handleStripeWebhook = async (req, res, next) => {
+	if (!stripe) return res.status(500).json({ message: 'Stripe not configured' });
+	if (!stripeWebhookSecret) return res.status(500).json({ message: 'Stripe webhook secret not configured' });
+
+	const sig = req.headers['stripe-signature'];
+	let event;
+
+	try {
+		event = stripe.webhooks.constructEvent(req.body, sig, stripeWebhookSecret);
+	} catch (err) {
+		console.error(`Webhook signature verification failed: ${err.message}`);
+		return res.status(400).send(`Webhook Error: ${err.message}`);
+	}
+
+	// Handle the event
+	switch (event.type) {
+		case 'payment_intent.succeeded': {
+			const paymentIntent = event.data.object;
+			console.log(`Webhook received: PaymentIntent ${paymentIntent.id} succeeded.`);
+
+			// Find the payment in your database via the transactionId
+			const payment = await Payment.findOne({ transactionId: paymentIntent.id });
+			if (payment && payment.status !== 'completed') {
+				await fulfillOrder(payment._id);
+				console.log(`Order for payment ${payment._id} fulfilled via webhook.`);
+			} else if (payment) {
+				console.log(`Webhook for ${paymentIntent.id} ignored: payment ${payment._id} already completed.`);
+			} else {
+				console.warn(`Webhook received for unknown PaymentIntent: ${paymentIntent.id}`);
+			}
+			break;
+		}
+		default:
+			console.log(`Unhandled webhook event type: ${event.type}`);
+	}
+
+	// Return a 200 response to acknowledge receipt of the event
+	res.json({ received: true });
 };
 
 exports.updatePaymentStatusByAdmin = async (req, res, next) => {

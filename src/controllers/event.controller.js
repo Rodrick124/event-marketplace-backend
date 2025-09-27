@@ -74,15 +74,19 @@ exports.updateEvent = async (req, res, next) => {
 
 		const { id } = req.params;
 		const updates = { ...req.body };
-		// Status must be updated via the dedicated /status endpoint to handle side-effects (e.g., cancelling reservations).
-		delete updates.status;
 		// Prevent changing owner
 		delete updates.organizerId;
 
 		// Organizers can only update their own events
 		const query = { _id: id };
 		if (req.user.role === 'organizer') {
+			// If an organizer updates an event, it should be re-submitted for review.
+			updates.status = 'pending';
 			query.organizerId = req.user.id;
+		} else {
+			// Admins can update without changing status unless they provide it.
+			// Status must be updated via the dedicated /status endpoint to handle side-effects (e.g., cancelling reservations).
+			delete updates.status;
 		}
 
 		// If totalSeats is being updated, we need to handle availableSeats carefully

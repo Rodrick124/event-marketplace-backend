@@ -960,6 +960,50 @@ exports.createEventForOrganizerDashboard = async (req, res, next) => {
 	}
 };
 
+exports.updateAndReviewEventForOrganizer = async (req, res, next) => {
+	try {
+		const errors = validationResult(req);
+		if (!errors.isEmpty()) {
+			return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
+		}
+
+		const { id } = req.params;
+		const organizerId = req.user.id;
+		const updates = { ...req.body };
+
+		// When an organizer updates an event, it must be re-submitted for review.
+		updates.status = 'pending';
+		// Prevent changing owner
+		delete updates.organizerId;
+
+		const query = { _id: id, organizerId };
+
+		// If totalSeats is being updated, we need to handle availableSeats carefully
+		if (updates.totalSeats !== undefined) {
+			const event = await Event.findOne(query);
+			if (!event) {
+				return res.status(404).json({ success: false, message: 'Event not found or you are not authorized to edit it.' });
+			}
+			const newTotalSeats = parseInt(updates.totalSeats, 10);
+			const seatsSold = event.totalSeats - event.availableSeats;
+			if (newTotalSeats < seatsSold) {
+				return res.status(400).json({ success: false, message: `Cannot reduce total seats below the number already sold (${seatsSold}).` });
+			}
+			updates.availableSeats = newTotalSeats - seatsSold;
+		}
+
+		const updatedEvent = await Event.findOneAndUpdate(query, { $set: updates }, { new: true, runValidators: true });
+
+		if (!updatedEvent) {
+			return res.status(404).json({ success: false, message: 'Event not found or you are not authorized to edit it.' });
+		}
+
+		return res.json({ success: true, message: 'Event updated and submitted for review.', data: updatedEvent });
+	} catch (err) {
+		return next(err);
+	}
+};
+
 exports.cancelEventForOrganizerDashboard = async (req, res, next) => {
 	const isReplicaSet = mongoose.connection.client.topology && mongoose.connection.client.topology.s.options.replicaSet;
 	const session = isReplicaSet ? await mongoose.startSession() : null;
